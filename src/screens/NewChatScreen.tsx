@@ -18,6 +18,7 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
   const [query, setQuery] = useState("");
   const [manualPeerId, setManualPeerId] = useState("");
   const [manualName, setManualName] = useState("");
+
   const filteredContacts = useMemo(
     () =>
       contacts.filter(
@@ -31,7 +32,7 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="New Chat" subtitle="Search by name, peer id, or fingerprint" />
+      <AppHeader title="New Chat" subtitle="Search contacts or add by direct peer id" />
 
       <TextInput
         value={query}
@@ -43,18 +44,16 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
 
       <Card>
         <Text style={styles.sectionLabel}>Add Contact</Text>
+        <Text style={styles.helperText}>Current method: Direct Peer ID (Profile {" > "} Network Peer ID).</Text>
         <View style={styles.methodRow}>
           <View style={[styles.methodChip, { borderColor: glow(accent, 0.3) }]}>
-            <Text style={styles.methodIcon}>📱</Text>
-            <Text style={[styles.methodText, { color: accent }]}>QR Scan</Text>
+            <Text style={[styles.methodText, { color: accent }]}>Direct ID (Live)</Text>
           </View>
           <View style={styles.methodChip}>
-            <Text style={styles.methodIcon}>📡</Text>
-            <Text style={styles.methodText}>NFC</Text>
+            <Text style={styles.methodText}>QR (Soon)</Text>
           </View>
           <View style={styles.methodChip}>
-            <Text style={styles.methodIcon}>🔗</Text>
-            <Text style={styles.methodText}>Invite Link</Text>
+            <Text style={styles.methodText}>NFC / Link (Soon)</Text>
           </View>
         </View>
       </Card>
@@ -75,9 +74,9 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
         </View>
       ))}
 
-      {/* Custom Peer */}
       <Card>
         <Text style={styles.sectionLabel}>Direct Peer ID</Text>
+        <Text style={styles.helperText}>Paste the peer id your friend shared with you.</Text>
         <TextInput
           value={manualPeerId}
           onChangeText={setManualPeerId}
@@ -141,6 +140,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 10,
   },
+  helperText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginBottom: 10,
+  },
   methodRow: {
     flexDirection: "row",
     gap: 10,
@@ -153,15 +157,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgElevated,
     padding: 12,
     alignItems: "center",
-    gap: 6,
-  },
-  methodIcon: {
-    fontSize: 20,
+    justifyContent: "center",
   },
   methodText: {
     color: COLORS.textSecondary,
     fontSize: 11,
     fontWeight: "500",
+    textAlign: "center",
   },
   contactCard: {
     flexDirection: "row",

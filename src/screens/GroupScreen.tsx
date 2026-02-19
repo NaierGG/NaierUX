@@ -13,7 +13,7 @@ export type GroupScreenProps = NativeStackScreenProps<RootStackParamList, "Group
 export function GroupScreen({ navigation, accent, route }: GroupScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Ops Mesh" subtitle={`Group ${route.params.groupId} | Onion enforced`} />
+      <AppHeader title="Groups" subtitle={`Group ${route.params.groupId} | Secure routing`} />
 
       <Card>
         <Text style={styles.sectionLabel}>Group Info</Text>
@@ -26,16 +26,16 @@ export function GroupScreen({ navigation, accent, route }: GroupScreenProps) {
           <Text style={styles.infoVal}>24h default</Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.infoKey}>Moderation:</Text>
-          <Text style={styles.infoVal}>Report + Route policy lock</Text>
+          <Text style={styles.infoKey}>Status:</Text>
+          <Text style={styles.infoVal}>Create or join with a trusted invite.</Text>
         </View>
       </Card>
 
       <Pressable
-        onPress={() => navigation.navigate("Chat", { peerId: "peer-astra", peerName: "Astra" })}
+        onPress={() => navigation.navigate("NewChat")}
         style={[styles.linkButton, { borderColor: glow(accent, 0.3) }]}
       >
-        <Text style={[styles.linkButtonText, { color: accent }]}>Open Group Thread</Text>
+        <Text style={[styles.linkButtonText, { color: accent }]}>Start Secure Chat</Text>
         <Text style={styles.linkArrow}>→</Text>
       </Pressable>
     </ScrollView>

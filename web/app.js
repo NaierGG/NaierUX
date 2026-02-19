@@ -2,7 +2,7 @@
    Naier Mesh — App Logic
    ═══════════════════════════════════════════ */
 
-const STORAGE_KEY = "naier-web-state-v4";
+const STORAGE_KEY = "naier-web-state-v5";
 
 const ROUTE_META = {
   "Direct P2P": { bars: 5, latency: 44, label: "Low latency, peer direct" },
@@ -15,7 +15,7 @@ const DEFAULT_STATE = {
   disappearPolicy: "5 min",
   accent: "#00FF88",
   queueInFlight: 0,
-  activeChatId: "chat-astra",
+  activeChatId: null,
   call: {
     phase: "idle",
     mode: "voice",
@@ -30,55 +30,8 @@ const DEFAULT_STATE = {
     loss: 0,
     durationSec: 0,
   },
-  chats: [
-    {
-      id: "chat-astra",
-      peerId: "peer-astra",
-      name: "Astra",
-      preview: "Route switched to direct P2P.",
-      time: "09:32",
-      route: "Direct P2P",
-      unread: 2,
-      trust: "verified",
-      messages: [
-        { id: "m-1", text: "Handshake complete. Route is onion relay.", fromMe: false, meta: "09:21 | sent" },
-        { id: "m-2", text: "Set timer to 5 minutes for this thread.", fromMe: true, meta: "09:22 | sent" },
-        { id: "m-3", text: "Received. Anti-delete lock is enabled.", fromMe: false, meta: "09:23 | sent" },
-      ],
-    },
-    {
-      id: "chat-node11",
-      peerId: "peer-node11",
-      name: "Node-11",
-      preview: "Fingerprint verified in person.",
-      time: "08:55",
-      route: "2-hop Relay",
-      unread: 0,
-      trust: "unverified",
-      messages: [
-        { id: "m-4", text: "Connection verified. Ready on relay path.", fromMe: false, meta: "08:54 | sent" },
-      ],
-    },
-    {
-      id: "chat-ops",
-      peerId: "peer-ops",
-      name: "Ops Mesh",
-      preview: "New disappearing policy: 24h",
-      time: "Yesterday",
-      route: "Tor",
-      unread: 6,
-      trust: "verified",
-      messages: [
-        { id: "m-5", text: "Ops update: route lock switched to Tor for this room.", fromMe: false, meta: "Yesterday | sent" },
-      ],
-    },
-  ],
-  contacts: [
-    { peerId: "peer-astra", name: "Astra", trust: "verified" },
-    { peerId: "peer-node11", name: "Node-11", trust: "unverified" },
-    { peerId: "peer-sable", name: "Sable", trust: "changed_key" },
-    { peerId: "peer-ops", name: "Ops Mesh", trust: "verified" },
-  ],
+  chats: [],
+  contacts: [],
 };
 
 let state = loadState();
@@ -266,21 +219,27 @@ function renderChats() {
 
 function renderRoomMeta() {
   const current = activeChat();
-  if (!current) return;
+  const dot = document.getElementById("headerRouteDot");
+  dot.style.background = routeColor(state.route);
+
+  const trustBadge = document.getElementById("trustBadge");
+  document.getElementById("queueState").textContent = `Queue: ${state.queueInFlight}`;
+
+  if (!current) {
+    document.getElementById("roomTitle").textContent = "No Active Chat";
+    document.getElementById("roomSub").textContent = `${state.route} | waiting for peer`;
+    document.getElementById("headerAvatar").textContent = "?";
+    trustBadge.textContent = "No Peer";
+    trustBadge.style.color = "#00D4FF";
+    return;
+  }
 
   const routeInfo = ROUTE_META[state.route];
   document.getElementById("roomTitle").textContent = current.name;
   document.getElementById("roomSub").textContent = `${state.route} • ${routeInfo.latency}ms`;
   document.getElementById("headerAvatar").textContent = current.name.slice(0, 1).toUpperCase();
-
-  const dot = document.getElementById("headerRouteDot");
-  dot.style.background = routeColor(state.route);
-
-  const trustBadge = document.getElementById("trustBadge");
   trustBadge.textContent = trustLabel(current.trust);
   trustBadge.style.color = trustColor(current.trust);
-
-  document.getElementById("queueState").textContent = `Queue: ${state.queueInFlight}`;
 }
 
 /* ── Render Messages ── */
@@ -294,7 +253,7 @@ function renderMessages() {
     messageList.innerHTML = `
       <div class="empty-chat">
         <div class="empty-icon">🔐</div>
-        <p>No messages yet.<br/>Start the encrypted conversation.</p>
+        <p>No chats yet.<br/>Add a friend with their peer ID.</p>
       </div>`;
     return;
   }
@@ -753,3 +712,4 @@ window.addEventListener("beforeunload", () => {
 });
 
 init();
+

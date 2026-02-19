@@ -26,7 +26,6 @@ import type { RootStackParamList } from "./types";
 import { COLORS, nextRouteMode } from "../theme/tokens";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const ACTIVE_PEER_ID = "peer-ops";
 const STACK_SCREEN_OPTIONS = {
   headerShown: false,
   contentStyle: { backgroundColor: "transparent" },
@@ -202,16 +201,21 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
         return;
       }
       if (item === "Calls") {
-        navigationRef.navigate("Call", { peerId: ACTIVE_PEER_ID, mode: "voice" });
+        const candidatePeer = contacts[0]?.peerId;
+        if (candidatePeer) {
+          navigationRef.navigate("Call", { peerId: candidatePeer, mode: "voice" });
+          return;
+        }
+        navigationRef.navigate("NewChat");
         return;
       }
       if (item === "Groups") {
-        navigationRef.navigate("Group", { groupId: "group-ops-mesh" });
+        navigationRef.navigate("Group", { groupId: "group-default" });
         return;
       }
       navigationRef.navigate("Settings");
     },
-    [navigationRef],
+    [contacts, navigationRef],
   );
 
   const onOpenChat = useCallback(
