@@ -7,6 +7,7 @@ import { useAppStateContext } from "../context/AppStateContext";
 import { useEngineContext } from "../context/EngineContext";
 import { useMessages } from "../hooks/useMessages";
 import { chatIdFromPeerId, normalizePeerId, peerIdFromChatId } from "../state/peer";
+import { buildVerificationCode } from "../state/verification";
 import { BackupScreen } from "../screens/BackupScreen";
 import { CallScreen } from "../screens/CallScreen";
 import { ChatScreen } from "../screens/ChatScreen";
@@ -326,6 +327,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
               const peerKeyState = peerKeys[peerId];
               const activeKeyPreview = keyPreview(peerKeyState?.activePublicKeyHex);
               const pendingKeyPreview = keyPreview(peerKeyState?.pendingPublicKeyHex);
+              const verificationCode = buildVerificationCode(localPeerId, peerId, peerKeyState?.activePublicKeyHex);
               const sendBlockedReason =
                 trustState === "changed_key"
                   ? "Peer key changed. Approve the new key before sending."
@@ -348,7 +350,9 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
                   securityPrefs={securityPreferences}
                   trustState={trustState}
                   activePeerKeyPreview={activeKeyPreview}
+                  activePeerKeyHex={peerKeyState?.activePublicKeyHex ?? null}
                   pendingPeerKeyPreview={pendingKeyPreview}
+                  verificationCode={verificationCode}
                   sendBlockedReason={sendBlockedReason}
                   onMarkPeerVerified={() => markPeerVerified(peerId)}
                   onApprovePeerKeyChange={() => approvePeerKeyChange(peerId)}

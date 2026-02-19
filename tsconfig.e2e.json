@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": ".e2e-dist",
+    "rootDir": "."
+  },
+  "include": [
+    "src/core/**/*.ts",
+    "tests/e2e/**/*.ts"
+  ]
+}

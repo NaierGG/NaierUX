@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
@@ -37,7 +37,9 @@ export type ChatScreenProps = NativeStackScreenProps<RootStackParamList, "Chat">
   securityPrefs: SecurityPreferences;
   trustState: TrustState;
   activePeerKeyPreview: string | null;
+  activePeerKeyHex: string | null;
   pendingPeerKeyPreview: string | null;
+  verificationCode: string | null;
   sendBlockedReason: string | null;
   onMarkPeerVerified: () => void;
   onApprovePeerKeyChange: () => void;
@@ -71,7 +73,9 @@ export function ChatScreen({
   securityPrefs,
   trustState,
   activePeerKeyPreview,
+  activePeerKeyHex,
   pendingPeerKeyPreview,
+  verificationCode,
   sendBlockedReason,
   onMarkPeerVerified,
   onApprovePeerKeyChange,
@@ -81,6 +85,7 @@ export function ChatScreen({
   const effectiveError = sendBlockedReason ?? initError;
   const trustLabel =
     trustState === "verified" ? "Verified" : trustState === "changed_key" ? "Key Changed" : "Unverified";
+  const [showFullKey, setShowFullKey] = useState(false);
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -107,6 +112,21 @@ export function ChatScreen({
       </View>
 
       {activePeerKeyPreview ? <Text style={styles.keyText}>Key: {activePeerKeyPreview}</Text> : null}
+      {verificationCode ? (
+        <View style={styles.verifyCard}>
+          <Text style={styles.verifyTitle}>Safety Number</Text>
+          <Text style={styles.verifyCode}>{verificationCode}</Text>
+          <Text style={styles.verifyHint}>Compare this code with your peer in person or over a trusted channel.</Text>
+          <Pressable onPress={() => setShowFullKey((prev) => !prev)} style={styles.verifyToggle}>
+            <Text style={[styles.verifyToggleText, { color: accent }]}>
+              {showFullKey ? "Hide Full Key" : "Reveal Full Key"}
+            </Text>
+          </Pressable>
+          {showFullKey && activePeerKeyHex ? (
+            <Text style={styles.fullKey}>{activePeerKeyHex.toUpperCase()}</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       {trustState === "unverified" ? (
         <Pressable style={[styles.verifyButton, { borderColor: accent }]} onPress={onMarkPeerVerified}>
@@ -252,6 +272,45 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 11,
     fontFamily: "monospace",
+  },
+  verifyCard: {
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass,
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+  },
+  verifyTitle: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  verifyCode: {
+    color: COLORS.accentCyber,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  verifyHint: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  verifyToggle: {
+    alignSelf: "flex-start",
+  },
+  verifyToggleText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  fullKey: {
+    color: COLORS.textSecondary,
+    fontSize: 10,
+    fontFamily: "monospace",
+    lineHeight: 15,
   },
   callCard: {
     borderRadius: 16,

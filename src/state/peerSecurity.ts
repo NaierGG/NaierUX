@@ -14,6 +14,12 @@ export type PersistedPeerSecurityState = {
   trustOverrides: Record<string, TrustState>;
 };
 
+interface StorageBackend {
+  kind: "localStorage" | "asyncStorage" | "secureStore" | "memory";
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+}
+
 const STORAGE_KEY = "naier.peer-security.v1";
 
 const EMPTY_STATE: PersistedPeerSecurityState = {
@@ -21,6 +27,9 @@ const EMPTY_STATE: PersistedPeerSecurityState = {
   peerKeys: {},
   trustOverrides: {},
 };
+
+const memoryStore = new Map<string, string>();
+let backendPromise: Promise<StorageBackend> | null = null;
 
 function getLocalStorage(): Storage | null {
   try {
@@ -32,6 +41,83 @@ function getLocalStorage(): Storage | null {
     // Ignore runtime storage access errors.
   }
   return null;
+}
+
+function dynamicImport(moduleId: string): Promise<any> {
+  // Avoid static module resolution so app still builds when optional backends are not installed.
+  const importer = Function("moduleId", "return import(moduleId);") as (id: string) => Promise<any>;
+  return importer(moduleId);
+}
+
+async function tryAsyncStorageBackend(): Promise<StorageBackend | null> {
+  try {
+    const mod = await dynamicImport("@react-native-async-storage/async-storage");
+    const api = mod?.default ?? mod;
+    if (typeof api?.getItem !== "function" || typeof api?.setItem !== "function") {
+      return null;
+    }
+    return {
+      kind: "asyncStorage",
+      getItem: (key) => api.getItem(key),
+      setItem: (key, value) => api.setItem(key, value),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function trySecureStoreBackend(): Promise<StorageBackend | null> {
+  try {
+    const mod = await dynamicImport("expo-secure-store");
+    if (typeof mod?.getItemAsync !== "function" || typeof mod?.setItemAsync !== "function") {
+      return null;
+    }
+    return {
+      kind: "secureStore",
+      getItem: (key) => mod.getItemAsync(key),
+      setItem: (key, value) => mod.setItemAsync(key, value),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveStorageBackend(): Promise<StorageBackend> {
+  const local = getLocalStorage();
+  if (local) {
+    return {
+      kind: "localStorage",
+      getItem: async (key) => local.getItem(key),
+      setItem: async (key, value) => {
+        local.setItem(key, value);
+      },
+    };
+  }
+
+  const asyncStorage = await tryAsyncStorageBackend();
+  if (asyncStorage) {
+    return asyncStorage;
+  }
+
+  const secureStore = await trySecureStoreBackend();
+  if (secureStore) {
+    return secureStore;
+  }
+
+  return {
+    kind: "memory",
+    getItem: async (key) => memoryStore.get(key) ?? null,
+    setItem: async (key, value) => {
+      memoryStore.set(key, value);
+    },
+  };
+}
+
+async function getBackend(): Promise<StorageBackend> {
+  if (!backendPromise) {
+    backendPromise = resolveStorageBackend();
+  }
+  return backendPromise;
 }
 
 function isTrustState(value: unknown): value is TrustState {
@@ -100,14 +186,10 @@ function normalizeState(value: unknown): PersistedPeerSecurityState {
   };
 }
 
-export function loadPersistedPeerSecurityState(): PersistedPeerSecurityState {
-  const storage = getLocalStorage();
-  if (!storage) {
-    return EMPTY_STATE;
-  }
-
+export async function loadPersistedPeerSecurityState(): Promise<PersistedPeerSecurityState> {
+  const backend = await getBackend();
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = await backend.getItem(STORAGE_KEY);
     if (!raw) {
       return EMPTY_STATE;
     }
@@ -118,14 +200,10 @@ export function loadPersistedPeerSecurityState(): PersistedPeerSecurityState {
   }
 }
 
-export function savePersistedPeerSecurityState(state: PersistedPeerSecurityState): void {
-  const storage = getLocalStorage();
-  if (!storage) {
-    return;
-  }
-
+export async function savePersistedPeerSecurityState(state: PersistedPeerSecurityState): Promise<void> {
+  const backend = await getBackend();
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(state));
+    await backend.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Ignore quota/security write errors.
   }

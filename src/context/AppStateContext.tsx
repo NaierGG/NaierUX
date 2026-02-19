@@ -72,19 +72,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const accent = useMemo(() => ACCENT_BY_MODE[accentMode], [accentMode]);
 
   useEffect(() => {
-    const persisted = loadPersistedPeerSecurityState();
-    peerKeysRef.current = persisted.peerKeys;
-    trustOverridesRef.current = persisted.trustOverrides;
-    setPeerKeys(persisted.peerKeys);
-    setTrustOverrides(persisted.trustOverrides);
-    setPeerSecurityHydrated(true);
+    let active = true;
+    void (async () => {
+      const persisted = await loadPersistedPeerSecurityState();
+      if (!active) {
+        return;
+      }
+      peerKeysRef.current = persisted.peerKeys;
+      trustOverridesRef.current = persisted.trustOverrides;
+      setPeerKeys(persisted.peerKeys);
+      setTrustOverrides(persisted.trustOverrides);
+      setPeerSecurityHydrated(true);
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
     if (!peerSecurityHydrated) {
       return;
     }
-    savePersistedPeerSecurityState({
+    void savePersistedPeerSecurityState({
       version: 1,
       peerKeys,
       trustOverrides,

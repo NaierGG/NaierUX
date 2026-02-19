@@ -342,6 +342,10 @@ export class MessengerEngine {
     controlType: "hello" | "key_exchange" | "ack",
     route: RouteMode,
   ): Promise<void> {
+    if (controlType === "hello" && peerState.handshake.phase === "secure") {
+      this.resetHandshake(peerState);
+    }
+
     if (controlType === "hello") {
       peerState.handshake.peerHelloReceived = true;
     } else if (controlType === "key_exchange") {
@@ -448,6 +452,11 @@ export class MessengerEngine {
         status: hadExisting ? "changed" : "first_seen",
       });
 
+      if (hadExisting) {
+        peerState.agreementSecretHex = undefined;
+        this.resetHandshake(peerState);
+      }
+
       if (!this.localAgreement) {
         return;
       }
@@ -464,6 +473,10 @@ export class MessengerEngine {
 
   private emitPeerKeyEvent(event: PeerKeyEvent): void {
     this.peerKeyListeners.forEach((listener) => listener(event));
+  }
+
+  private resetHandshake(peerState: PeerSessionState): void {
+    peerState.handshake = createHandshakeState();
   }
 
   private waitForPeerSecure(peerId: string, timeoutMs: number): Promise<void> {
