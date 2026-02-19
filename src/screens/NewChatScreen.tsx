@@ -3,18 +3,28 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 import type { ContactProfile, TrustState } from "../core";
+import type { ContactRequest } from "../state/appStateStore";
 import { COLORS, glow } from "../theme/tokens";
 import { AppHeader } from "../components/AppHeader";
 import { Card } from "../components/Card";
 import { Avatar } from "../components/Avatar";
+import { normalizePeerId } from "../state/peer";
 
 export type NewChatScreenProps = NativeStackScreenProps<RootStackParamList, "NewChat"> & {
   accent: string;
   contacts: ContactProfile[];
+  contactRequests: ContactRequest[];
   onStartChat: (peerId: string, name: string, trust?: TrustState) => void;
+  onSendFriendRequest: (peerId: string, name?: string) => void;
 };
 
-export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenProps) {
+export function NewChatScreen({
+  accent,
+  contacts,
+  contactRequests,
+  onStartChat,
+  onSendFriendRequest,
+}: NewChatScreenProps) {
   const [query, setQuery] = useState("");
   const [manualPeerId, setManualPeerId] = useState("");
   const [manualName, setManualName] = useState("");
@@ -28,6 +38,12 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
           c.peerId.toLowerCase().includes(query.toLowerCase()),
       ),
     [contacts, query],
+  );
+
+  const manualNormalizedPeerId = manualPeerId.trim() ? normalizePeerId(manualPeerId) : "";
+  const existingRequest = useMemo(
+    () => contactRequests.find((request) => request.peerId === manualNormalizedPeerId) ?? null,
+    [contactRequests, manualNormalizedPeerId],
   );
 
   return (
@@ -83,6 +99,8 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
           placeholder="peer-custom-id"
           placeholderTextColor={COLORS.textMuted}
           style={styles.peerInput}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
         <TextInput
           value={manualName}
@@ -91,26 +109,50 @@ export function NewChatScreen({ accent, contacts, onStartChat }: NewChatScreenPr
           placeholderTextColor={COLORS.textMuted}
           style={styles.peerInput}
         />
-        <Pressable
-          disabled={!manualPeerId.trim()}
-          style={[
-            styles.manualStartButton,
-            { borderColor: glow(accent, 0.4), backgroundColor: glow(accent, 0.08) },
-            !manualPeerId.trim() ? styles.manualStartButtonDisabled : null,
-          ]}
-          onPress={() => {
-            const peerId = manualPeerId.trim();
-            if (!peerId) {
-              return;
-            }
-            const name = manualName.trim() || peerId;
-            onStartChat(peerId, name, "unverified");
-            setManualPeerId("");
-            setManualName("");
-          }}
-        >
-          <Text style={[styles.manualStartButtonText, { color: accent }]}>Start Secure Chat</Text>
-        </Pressable>
+        {existingRequest ? (
+          <Text style={styles.pendingText}>
+            Pending request: {existingRequest.direction === "incoming" ? "Incoming" : "Outgoing"}
+          </Text>
+        ) : null}
+        <View style={styles.buttonRow}>
+          <Pressable
+            disabled={!manualPeerId.trim()}
+            style={[
+              styles.manualButton,
+              { borderColor: glow(accent, 0.35), backgroundColor: glow(accent, 0.08) },
+              !manualPeerId.trim() ? styles.manualButtonDisabled : null,
+            ]}
+            onPress={() => {
+              const peerId = manualPeerId.trim();
+              if (!peerId) {
+                return;
+              }
+              const name = manualName.trim() || normalizePeerId(peerId);
+              onStartChat(peerId, name, "unverified");
+              setManualPeerId("");
+              setManualName("");
+            }}
+          >
+            <Text style={[styles.manualButtonText, { color: accent }]}>Start Secure Chat</Text>
+          </Pressable>
+          <Pressable
+            disabled={!manualPeerId.trim()}
+            style={[
+              styles.manualButton,
+              { borderColor: COLORS.glassBorder, backgroundColor: COLORS.bgElevated },
+              !manualPeerId.trim() ? styles.manualButtonDisabled : null,
+            ]}
+            onPress={() => {
+              const peerId = manualPeerId.trim();
+              if (!peerId) {
+                return;
+              }
+              onSendFriendRequest(peerId, manualName.trim() || undefined);
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Send Friend Request</Text>
+          </Pressable>
+        </View>
       </Card>
     </ScrollView>
   );
@@ -210,17 +252,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 10,
   },
-  manualStartButton: {
+  pendingText: {
+    color: COLORS.warn,
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  buttonRow: {
+    gap: 8,
+  },
+  manualButton: {
     borderRadius: 10,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
   },
-  manualStartButtonDisabled: {
+  manualButtonDisabled: {
     opacity: 0.45,
   },
-  manualStartButtonText: {
+  manualButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  secondaryButtonText: {
+    color: COLORS.textPrimary,
     fontSize: 12,
     fontWeight: "600",
   },

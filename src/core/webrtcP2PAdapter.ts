@@ -12,6 +12,33 @@ type AnyIceCandidate = any;
 type AnySessionDescription = any;
 type IceTransportPolicy = "all" | "relay";
 
+function runtimeEnv(name: string): string | undefined {
+  try {
+    const envObj = (globalThis as any)?.process?.env;
+    const direct = envObj?.[name];
+    if (typeof direct === "string" && direct.length > 0) {
+      return direct;
+    }
+    const expoPublic = envObj?.[`EXPO_PUBLIC_${name}`];
+    if (typeof expoPublic === "string" && expoPublic.length > 0) {
+      return expoPublic;
+    }
+  } catch {
+    // Ignore env read errors.
+  }
+  return undefined;
+}
+
+function parseCsv(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 export interface WebRTCP2PAdapterOptions {
   rtcConfig?: AnyRtcConfiguration;
   reconnectMaxAttempts?: number;
@@ -56,14 +83,32 @@ export function isWebRTCSupported(): boolean {
 }
 
 function defaultRtcConfig(): AnyRtcConfiguration {
+  const configuredStun = parseCsv(runtimeEnv("NAIER_STUN_URLS"));
+  const stunUrls = configuredStun.length > 0
+    ? configuredStun
+    : [
+        "stun:stun.l.google.com:19302",
+        "stun:stun1.l.google.com:19302",
+      ];
+
+  const turnUrls = parseCsv(runtimeEnv("NAIER_TURN_URLS"));
+  const turnUsername = runtimeEnv("NAIER_TURN_USERNAME");
+  const turnCredential = runtimeEnv("NAIER_TURN_CREDENTIAL");
+
+  const iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
+    ...stunUrls.map((url) => ({ urls: url })),
+  ];
+
+  if (turnUrls.length > 0 && turnUsername && turnCredential) {
+    iceServers.push({
+      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
+      username: turnUsername,
+      credential: turnCredential,
+    });
+  }
+
   return {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      // TURN placeholders. Replace with production credentials.
-      { urls: "turn:turn.naier.local:3478?transport=udp", username: "naier", credential: "naier" },
-      { urls: "turn:turn.naier.local:3478?transport=tcp", username: "naier", credential: "naier" },
-    ],
+    iceServers,
   };
 }
 

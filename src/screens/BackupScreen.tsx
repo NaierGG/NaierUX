@@ -1,43 +1,113 @@
-import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
-import { COLORS } from "../theme/tokens";
+import { COLORS, glow } from "../theme/tokens";
 import { AppHeader } from "../components/AppHeader";
 import { Card } from "../components/Card";
 
-export type BackupScreenProps = NativeStackScreenProps<RootStackParamList, "Backup">;
+export type BackupScreenProps = NativeStackScreenProps<RootStackParamList, "Backup"> & {
+  accent: string;
+  onExportBackup: () => Promise<string>;
+  onImportBackup: (payload: string) => Promise<{ ok: boolean; error?: string }>;
+};
 
-export function BackupScreen() {
+export function BackupScreen({ accent, onExportBackup, onImportBackup }: BackupScreenProps) {
+  const [backupPayload, setBackupPayload] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Backup & Export" subtitle="Air-gapped export recommended" />
+      <AppHeader title="Backup & Export" subtitle="Encrypted local backup payload" />
 
       <Card>
-        <Text style={styles.sectionLabel}>Status</Text>
-        <View style={styles.statusRow}>
-          <Text style={styles.statusDot}>●</Text>
-          <Text style={styles.body}>Local encrypted backup: Ready</Text>
-        </View>
-        <View style={styles.statusRow}>
-          <Text style={[styles.statusDot, { color: COLORS.warn }]}>●</Text>
-          <Text style={styles.body}>Recovery phrase re-check: Pending</Text>
-        </View>
-      </Card>
-
-      <Card accent={COLORS.accentAlert}>
-        <Text style={styles.warning}>
-          ⚠ Avoid cloud destinations that expose metadata.
-        </Text>
+        <Text style={styles.sectionLabel}>Generate Backup</Text>
         <Text style={styles.body}>
-          Export includes encrypted history + contact fingerprints.
+          Creates an encrypted payload for chats, contacts, settings, requests, and blocked peers.
         </Text>
+        <Pressable
+          disabled={busy}
+          onPress={async () => {
+            setBusy(true);
+            setError(null);
+            setStatus(null);
+            try {
+              const payload = await onExportBackup();
+              setBackupPayload(payload);
+              setStatus("Encrypted backup payload generated.");
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : "Failed to export backup.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          style={[
+            styles.actionButton,
+            { borderColor: glow(accent, 0.45), backgroundColor: glow(accent, 0.08) },
+            busy ? styles.disabledButton : null,
+          ]}
+        >
+          <Text style={[styles.actionButtonText, { color: accent }]}>
+            {busy ? "Working..." : "Generate Encrypted Backup"}
+          </Text>
+        </Pressable>
       </Card>
 
       <Card>
-        <Text style={styles.sectionLabel}>Export Format</Text>
-        <Text style={styles.body}>Encrypted JSON • AES-256-GCM wrapped</Text>
-        <Text style={styles.body}>Compatible with air-gapped restore</Text>
+        <Text style={styles.sectionLabel}>Backup Payload</Text>
+        <TextInput
+          multiline
+          value={backupPayload}
+          onChangeText={setBackupPayload}
+          placeholder="Encrypted backup payload..."
+          placeholderTextColor={COLORS.textMuted}
+          style={styles.payloadInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textAlignVertical="top"
+        />
+        {status ? <Text style={styles.successText}>{status}</Text> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <View style={styles.row}>
+          <Pressable
+            disabled={busy || !backupPayload.trim()}
+            onPress={() => setBackupPayload("")}
+            style={[
+              styles.smallButton,
+              { borderColor: COLORS.glassBorder, backgroundColor: COLORS.bgElevated },
+              (busy || !backupPayload.trim()) ? styles.disabledButton : null,
+            ]}
+          >
+            <Text style={styles.smallButtonText}>Clear</Text>
+          </Pressable>
+          <Pressable
+            disabled={busy || !backupPayload.trim()}
+            onPress={async () => {
+              if (!backupPayload.trim()) {
+                return;
+              }
+              setBusy(true);
+              setError(null);
+              setStatus(null);
+              const result = await onImportBackup(backupPayload.trim());
+              if (result.ok) {
+                setStatus("Backup imported successfully.");
+              } else {
+                setError(result.error ?? "Backup import failed.");
+              }
+              setBusy(false);
+            }}
+            style={[
+              styles.smallButton,
+              { borderColor: glow(accent, 0.45), backgroundColor: glow(accent, 0.08) },
+              (busy || !backupPayload.trim()) ? styles.disabledButton : null,
+            ]}
+          >
+            <Text style={[styles.smallButtonText, { color: accent }]}>Import Backup</Text>
+          </Pressable>
+        </View>
       </Card>
     </ScrollView>
   );
@@ -61,21 +131,60 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 13,
     lineHeight: 20,
+    marginBottom: 10,
   },
-  warning: {
-    color: COLORS.danger,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 6,
-  },
-  statusRow: {
-    flexDirection: "row",
+  actionButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 4,
+    justifyContent: "center",
   },
-  statusDot: {
-    color: COLORS.accentMain,
-    fontSize: 8,
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  payloadInput: {
+    minHeight: 180,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.inputBg,
+    color: COLORS.textPrimary,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  successText: {
+    color: COLORS.success,
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: COLORS.danger,
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  smallButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });

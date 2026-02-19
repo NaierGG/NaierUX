@@ -1,11 +1,11 @@
 ﻿import React, { createContext, useContext, useMemo } from "react";
 import type {
+  CallAdapter,
   CallState,
   ChatMessage,
   CryptoCapability,
   IdentityProfile,
   MessengerEngine,
-  MockWebRTCCallAdapter,
   RouteMode,
   SecurityConfig,
 } from "../core";
@@ -14,16 +14,18 @@ import {
   useEngine,
   type IncomingPacketPayload,
   type PeerKeyEventPayload,
+  type RestoreIdentityResult,
   type SendMessageInput,
 } from "../hooks/useEngine";
 
 type EngineContextValue = {
   engine: MessengerEngine | null;
-  callAdapter: MockWebRTCCallAdapter | null;
+  callAdapter: CallAdapter | null;
   identity: IdentityProfile;
   localPeerId: string;
   recoveryWords: string[];
   phraseValid: boolean;
+  identityReady: boolean;
   cryptoCapability: CryptoCapability;
   initError: string | null;
   activeNetworkName: string;
@@ -34,6 +36,7 @@ type EngineContextValue = {
   setNetworkRoute: (route: RouteMode) => void;
   subscribeIncoming: (handler: (payload: IncomingPacketPayload) => void) => () => void;
   subscribePeerKeys: (handler: (event: PeerKeyEventPayload) => void) => () => void;
+  restoreIdentityFromPhrase: (phraseInput: string) => Promise<RestoreIdentityResult>;
   callState: CallState;
   startCall: (peerId: string, mode: "voice" | "video", route: RouteMode) => Promise<void>;
   endCall: (reason?: string) => Promise<void>;
@@ -52,6 +55,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     localPeerId,
     recoveryWords,
     phraseValid,
+    identityReady,
     cryptoCapability,
     initError,
     activeNetworkName,
@@ -62,6 +66,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     setNetworkRoute,
     subscribeIncoming,
     subscribePeerKeys,
+    restoreIdentityFromPhrase,
   } = useEngine();
 
   const {
@@ -73,7 +78,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     toggleCamera,
     toggleSpeaker,
     switchCallRoute,
-  } = useCall();
+  } = useCall({ localPeerId });
 
   const value = useMemo<EngineContextValue>(
     () => ({
@@ -83,6 +88,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       localPeerId,
       recoveryWords,
       phraseValid,
+      identityReady,
       cryptoCapability,
       initError,
       activeNetworkName,
@@ -93,6 +99,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       setNetworkRoute,
       subscribeIncoming,
       subscribePeerKeys,
+      restoreIdentityFromPhrase,
       callState,
       startCall,
       endCall,
@@ -112,8 +119,10 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       localPeerId,
       inFlightCount,
       initError,
+      identityReady,
       phraseValid,
       recoveryWords,
+      restoreIdentityFromPhrase,
       securityBootstrap,
       sendMessage,
       setNetworkRoute,

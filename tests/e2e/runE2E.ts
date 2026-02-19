@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { MessengerEngine } from "../../src/core/messengerEngine";
-import { createLocalKeyAgreement, establishSession } from "../../src/core/crypto";
+import { createIdentityProfile } from "../../src/core/identity";
+import { createLocalKeyAgreement, establishSession, restoreLocalKeyAgreement, serializeLocalKeyAgreement } from "../../src/core/crypto";
 import type { EncryptedPacket, RouteMode, RouteStatus } from "../../src/core/types";
 import type { NetworkAdapter, SendResult } from "../../src/core/network";
+import { exportEncryptedAppBackup, importEncryptedAppBackup, loadPersistedAppState, savePersistedAppState } from "../../src/state/appStateStore";
+import { loadPersistedIdentityState, savePersistedIdentityState } from "../../src/state/identityStore";
 
 type PacketHandler = (packet: EncryptedPacket, fromPeerId: string) => void;
 
@@ -226,10 +229,117 @@ async function runKeyRotationScenario(): Promise<void> {
   await engineA.stop();
 }
 
+async function runEncryptedAppStateScenario(): Promise<void> {
+  process.env.NAIER_MESSAGE_KEY = "test-shared-message-key-12345";
+
+  const seedState = {
+    version: 1 as const,
+    route: "2-hop Relay" as const,
+    disappearPolicy: "1 h" as const,
+    accentMode: "Cyber Blue" as const,
+    messages: [
+      {
+        id: "msg-1",
+        chatId: "chat-peer-z",
+        text: "encrypted-state-test",
+        fromMe: true,
+        sentAtLabel: "10:00",
+        delivery: "sent" as const,
+      },
+    ],
+    chats: [
+      {
+        id: "chat-peer-z",
+        name: "peer-z",
+        lastMessage: "encrypted-state-test",
+        timeLabel: "10:00",
+        unread: 0,
+        trust: "unverified" as const,
+      },
+    ],
+    contacts: [
+      {
+        peerId: "peer-z",
+        name: "peer-z",
+        fingerprintPreview: "AAAA:BBBB:CCCC",
+        online: true,
+        trust: "unverified" as const,
+      },
+    ],
+    securityPreferences: {
+      biometricLock: true,
+      screenshotBlock: true,
+      antiDelete: true,
+      preferDirectP2P: true,
+      relayFallback: true,
+    },
+    contactRequests: [
+      {
+        peerId: "peer-y",
+        name: "peer-y",
+        direction: "outgoing" as const,
+        createdAtIso: new Date().toISOString(),
+      },
+    ],
+    blockedPeers: ["peer-blocked"],
+  };
+
+  await savePersistedAppState(seedState);
+  const loaded = await loadPersistedAppState();
+  assert.equal(loaded.route, "2-hop Relay");
+  assert.equal(loaded.messages[0]?.text, "encrypted-state-test");
+  assert.equal(loaded.contactRequests[0]?.peerId, "peer-y");
+
+  const backupPayload = await exportEncryptedAppBackup(seedState);
+  assert.ok(backupPayload.length > 24);
+  const restored = await importEncryptedAppBackup(backupPayload);
+  assert.ok(restored);
+  assert.equal(restored?.contacts[0]?.peerId, "peer-z");
+  assert.equal(restored?.blockedPeers.includes("peer-blocked"), true);
+}
+
+async function runIdentityPersistenceScenario(): Promise<void> {
+  process.env.NAIER_MESSAGE_KEY = "test-shared-message-key-12345";
+
+  const words = [
+    "anchor",
+    "apex",
+    "arc",
+    "ash",
+    "atlas",
+    "aurora",
+    "binary",
+    "black",
+    "bloom",
+    "bridge",
+    "byte",
+    "carbon",
+  ];
+  const identity = createIdentityProfile("Naier User", words);
+  const agreement = await createLocalKeyAgreement(identity.publicFingerprint);
+  const serializedAgreement = await serializeLocalKeyAgreement(agreement);
+
+  await savePersistedIdentityState({
+    version: 1,
+    identity,
+    keyAgreement: serializedAgreement,
+  });
+
+  const loaded = await loadPersistedIdentityState();
+  assert.ok(loaded);
+  assert.equal(loaded?.identity.publicFingerprint, identity.publicFingerprint);
+
+  const restoredAgreement = await restoreLocalKeyAgreement(loaded?.keyAgreement ?? null);
+  assert.ok(restoredAgreement);
+  assert.equal(restoredAgreement?.keyId, agreement.keyId);
+}
+
 async function main(): Promise<void> {
   const scenarios = [
     { name: "handshake delivery", run: runHandshakeDeliveryScenario },
     { name: "key rotation event", run: runKeyRotationScenario },
+    { name: "encrypted app-state persistence", run: runEncryptedAppStateScenario },
+    { name: "identity persistence", run: runIdentityPersistenceScenario },
   ];
   for (const scenario of scenarios) {
     await scenario.run();

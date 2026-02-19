@@ -32,6 +32,13 @@ export interface LocalKeyAgreement {
   privateKey: any | null;
 }
 
+export interface PersistedLocalKeyAgreement {
+  curve: "P-256";
+  keyId: string;
+  publicKeyHex: string;
+  privateJwk?: JsonWebKey | null;
+}
+
 const MIN_MESSAGE_KEY_LENGTH = 16;
 let cachedMessageKey: Uint8Array | null = null;
 
@@ -213,6 +220,82 @@ export async function createLocalKeyAgreement(identityFingerprint: string): Prom
     publicKeyHex: toHex(new Uint8Array(raw)),
     privateKey: pair.privateKey,
   };
+}
+
+export async function serializeLocalKeyAgreement(
+  localAgreement: LocalKeyAgreement | null | undefined,
+): Promise<PersistedLocalKeyAgreement | null> {
+  if (!localAgreement) {
+    return null;
+  }
+  const base: PersistedLocalKeyAgreement = {
+    curve: "P-256",
+    keyId: localAgreement.keyId.trim(),
+    publicKeyHex: localAgreement.publicKeyHex.trim().toLowerCase(),
+  };
+  if (!base.keyId || !base.publicKeyHex || !localAgreement.privateKey) {
+    return base;
+  }
+
+  const subtle = getSubtleCrypto();
+  if (!subtle) {
+    return base;
+  }
+  try {
+    const privateJwk = await subtle.exportKey("jwk", localAgreement.privateKey);
+    return {
+      ...base,
+      privateJwk,
+    };
+  } catch {
+    return base;
+  }
+}
+
+export async function restoreLocalKeyAgreement(
+  persisted: PersistedLocalKeyAgreement | null | undefined,
+): Promise<LocalKeyAgreement | null> {
+  if (!persisted || persisted.curve !== "P-256") {
+    return null;
+  }
+  const keyId = persisted.keyId.trim();
+  const publicKeyHex = normalizePublicKeyHex(persisted.publicKeyHex);
+  if (!keyId || !publicKeyHex) {
+    return null;
+  }
+
+  const subtle = getSubtleCrypto();
+  if (!subtle || !persisted.privateJwk) {
+    return {
+      curve: "P-256",
+      keyId,
+      publicKeyHex,
+      privateKey: null,
+    };
+  }
+
+  try {
+    const privateKey = await subtle.importKey(
+      "jwk",
+      persisted.privateJwk,
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      ["deriveBits"],
+    );
+    return {
+      curve: "P-256",
+      keyId,
+      publicKeyHex,
+      privateKey,
+    };
+  } catch {
+    return {
+      curve: "P-256",
+      keyId,
+      publicKeyHex,
+      privateKey: null,
+    };
+  }
 }
 
 export async function deriveAgreementSecretHex(

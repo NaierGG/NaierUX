@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createLocalKeyAgreement = createLocalKeyAgreement;
+exports.serializeLocalKeyAgreement = serializeLocalKeyAgreement;
+exports.restoreLocalKeyAgreement = restoreLocalKeyAgreement;
 exports.deriveAgreementSecretHex = deriveAgreementSecretHex;
 exports.getCryptoCapability = getCryptoCapability;
 exports.createPreKeyBundle = createPreKeyBundle;
@@ -166,6 +168,69 @@ async function createLocalKeyAgreement(identityFingerprint) {
         publicKeyHex: toHex(new Uint8Array(raw)),
         privateKey: pair.privateKey,
     };
+}
+async function serializeLocalKeyAgreement(localAgreement) {
+    if (!localAgreement) {
+        return null;
+    }
+    const base = {
+        curve: "P-256",
+        keyId: localAgreement.keyId.trim(),
+        publicKeyHex: localAgreement.publicKeyHex.trim().toLowerCase(),
+    };
+    if (!base.keyId || !base.publicKeyHex || !localAgreement.privateKey) {
+        return base;
+    }
+    const subtle = getSubtleCrypto();
+    if (!subtle) {
+        return base;
+    }
+    try {
+        const privateJwk = await subtle.exportKey("jwk", localAgreement.privateKey);
+        return {
+            ...base,
+            privateJwk,
+        };
+    }
+    catch {
+        return base;
+    }
+}
+async function restoreLocalKeyAgreement(persisted) {
+    if (!persisted || persisted.curve !== "P-256") {
+        return null;
+    }
+    const keyId = persisted.keyId.trim();
+    const publicKeyHex = normalizePublicKeyHex(persisted.publicKeyHex);
+    if (!keyId || !publicKeyHex) {
+        return null;
+    }
+    const subtle = getSubtleCrypto();
+    if (!subtle || !persisted.privateJwk) {
+        return {
+            curve: "P-256",
+            keyId,
+            publicKeyHex,
+            privateKey: null,
+        };
+    }
+    try {
+        const privateKey = await subtle.importKey("jwk", persisted.privateJwk, { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]);
+        return {
+            curve: "P-256",
+            keyId,
+            publicKeyHex,
+            privateKey,
+        };
+    }
+    catch {
+        return {
+            curve: "P-256",
+            keyId,
+            publicKeyHex,
+            privateKey: null,
+        };
+    }
 }
 async function deriveAgreementSecretHex(localAgreement, remoteDescriptor) {
     if (!localAgreement.privateKey) {

@@ -5,7 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const strict_1 = __importDefault(require("node:assert/strict"));
 const messengerEngine_1 = require("../../src/core/messengerEngine");
+const identity_1 = require("../../src/core/identity");
 const crypto_1 = require("../../src/core/crypto");
+const appStateStore_1 = require("../../src/state/appStateStore");
+const identityStore_1 = require("../../src/state/identityStore");
 class DeterministicP2PAdapter {
     constructor() {
         this.name = "DeterministicP2PAdapter";
@@ -175,10 +178,108 @@ async function runKeyRotationScenario() {
     await engineB2.stop();
     await engineA.stop();
 }
+async function runEncryptedAppStateScenario() {
+    process.env.NAIER_MESSAGE_KEY = "test-shared-message-key-12345";
+    const seedState = {
+        version: 1,
+        route: "2-hop Relay",
+        disappearPolicy: "1 h",
+        accentMode: "Cyber Blue",
+        messages: [
+            {
+                id: "msg-1",
+                chatId: "chat-peer-z",
+                text: "encrypted-state-test",
+                fromMe: true,
+                sentAtLabel: "10:00",
+                delivery: "sent",
+            },
+        ],
+        chats: [
+            {
+                id: "chat-peer-z",
+                name: "peer-z",
+                lastMessage: "encrypted-state-test",
+                timeLabel: "10:00",
+                unread: 0,
+                trust: "unverified",
+            },
+        ],
+        contacts: [
+            {
+                peerId: "peer-z",
+                name: "peer-z",
+                fingerprintPreview: "AAAA:BBBB:CCCC",
+                online: true,
+                trust: "unverified",
+            },
+        ],
+        securityPreferences: {
+            biometricLock: true,
+            screenshotBlock: true,
+            antiDelete: true,
+            preferDirectP2P: true,
+            relayFallback: true,
+        },
+        contactRequests: [
+            {
+                peerId: "peer-y",
+                name: "peer-y",
+                direction: "outgoing",
+                createdAtIso: new Date().toISOString(),
+            },
+        ],
+        blockedPeers: ["peer-blocked"],
+    };
+    await (0, appStateStore_1.savePersistedAppState)(seedState);
+    const loaded = await (0, appStateStore_1.loadPersistedAppState)();
+    strict_1.default.equal(loaded.route, "2-hop Relay");
+    strict_1.default.equal(loaded.messages[0]?.text, "encrypted-state-test");
+    strict_1.default.equal(loaded.contactRequests[0]?.peerId, "peer-y");
+    const backupPayload = await (0, appStateStore_1.exportEncryptedAppBackup)(seedState);
+    strict_1.default.ok(backupPayload.length > 24);
+    const restored = await (0, appStateStore_1.importEncryptedAppBackup)(backupPayload);
+    strict_1.default.ok(restored);
+    strict_1.default.equal(restored?.contacts[0]?.peerId, "peer-z");
+    strict_1.default.equal(restored?.blockedPeers.includes("peer-blocked"), true);
+}
+async function runIdentityPersistenceScenario() {
+    process.env.NAIER_MESSAGE_KEY = "test-shared-message-key-12345";
+    const words = [
+        "anchor",
+        "apex",
+        "arc",
+        "ash",
+        "atlas",
+        "aurora",
+        "binary",
+        "black",
+        "bloom",
+        "bridge",
+        "byte",
+        "carbon",
+    ];
+    const identity = (0, identity_1.createIdentityProfile)("Naier User", words);
+    const agreement = await (0, crypto_1.createLocalKeyAgreement)(identity.publicFingerprint);
+    const serializedAgreement = await (0, crypto_1.serializeLocalKeyAgreement)(agreement);
+    await (0, identityStore_1.savePersistedIdentityState)({
+        version: 1,
+        identity,
+        keyAgreement: serializedAgreement,
+    });
+    const loaded = await (0, identityStore_1.loadPersistedIdentityState)();
+    strict_1.default.ok(loaded);
+    strict_1.default.equal(loaded?.identity.publicFingerprint, identity.publicFingerprint);
+    const restoredAgreement = await (0, crypto_1.restoreLocalKeyAgreement)(loaded?.keyAgreement ?? null);
+    strict_1.default.ok(restoredAgreement);
+    strict_1.default.equal(restoredAgreement?.keyId, agreement.keyId);
+}
 async function main() {
     const scenarios = [
         { name: "handshake delivery", run: runHandshakeDeliveryScenario },
         { name: "key rotation event", run: runKeyRotationScenario },
+        { name: "encrypted app-state persistence", run: runEncryptedAppStateScenario },
+        { name: "identity persistence", run: runIdentityPersistenceScenario },
     ];
     for (const scenario of scenarios) {
         await scenario.run();

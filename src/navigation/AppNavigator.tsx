@@ -74,6 +74,8 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
     setMessages,
     chats,
     contacts,
+    contactRequests,
+    blockedPeers,
     peerKeys,
     securityPreferences,
     setSecurityPreference,
@@ -83,6 +85,16 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
     markPeerVerified,
     markChatRead,
     registerThreadActivity,
+    sendFriendRequest,
+    receiveFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    cancelOutgoingFriendRequest,
+    blockPeer,
+    unblockPeer,
+    isPeerBlocked,
+    exportBackupPayload,
+    importBackupPayload,
   } = useAppStateContext();
 
   const {
@@ -90,12 +102,14 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
     localPeerId,
     recoveryWords,
     phraseValid,
+    identityReady,
     cryptoCapability,
     initError,
     sendMessage,
     setNetworkRoute,
     subscribeIncoming,
     subscribePeerKeys,
+    restoreIdentityFromPhrase,
     callState,
     startCall,
     endCall,
@@ -130,13 +144,36 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
     return new Map(contacts.map((contact) => [contact.peerId, contact]));
   }, [contacts]);
 
+  const requestsByPeerId = useMemo(() => {
+    return new Map(contactRequests.map((request) => [request.peerId, request]));
+  }, [contactRequests]);
+
+  const blockedPeerSet = useMemo(() => {
+    return new Set(blockedPeers);
+  }, [blockedPeers]);
+
   useEffect(() => {
     return subscribeIncoming(({ fromPeerId, plaintext, packetId }) => {
       const normalizedPeerId = normalizePeerId(fromPeerId);
+      if (blockedPeerSet.has(normalizedPeerId)) {
+        return;
+      }
+
       const knownContact = contactsByPeerId.get(normalizedPeerId);
-      const peerName = knownContact?.name ?? normalizedPeerId;
-      const trust = knownContact?.trust ?? "unverified";
-      const chatId = ensureChatForPeer(normalizedPeerId, peerName, trust);
+      const request = requestsByPeerId.get(normalizedPeerId);
+      let peerName = knownContact?.name ?? request?.name ?? normalizedPeerId;
+      let trust: "verified" | "unverified" | "changed_key" = knownContact?.trust ?? "unverified";
+      let chatId: string;
+
+      if (knownContact) {
+        chatId = ensureChatForPeer(normalizedPeerId, peerName, trust);
+      } else if (request?.direction === "outgoing") {
+        chatId = acceptFriendRequest(normalizedPeerId, peerName);
+        trust = "unverified";
+      } else {
+        receiveFriendRequest(normalizedPeerId, peerName, plaintext);
+        return;
+      }
 
       const incoming: ChatMessage = {
         id: `msg-in-${packetId}`,
@@ -163,7 +200,18 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
         trust,
       });
     });
-  }, [contactsByPeerId, cryptoCapability.scheme, ensureChatForPeer, registerThreadActivity, setMessages, subscribeIncoming]);
+  }, [
+    acceptFriendRequest,
+    blockedPeerSet,
+    contactsByPeerId,
+    cryptoCapability.scheme,
+    ensureChatForPeer,
+    receiveFriendRequest,
+    registerThreadActivity,
+    requestsByPeerId,
+    setMessages,
+    subscribeIncoming,
+  ]);
 
   useEffect(() => {
     return subscribePeerKeys(({ peerId, keyId, publicKeyHex }) => {
@@ -201,7 +249,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
         return;
       }
       if (item === "Calls") {
-        const candidatePeer = contacts[0]?.peerId;
+        const candidatePeer = contacts.find((contact) => !blockedPeerSet.has(contact.peerId))?.peerId;
         if (candidatePeer) {
           navigationRef.navigate("Call", { peerId: candidatePeer, mode: "voice" });
           return;
@@ -215,14 +263,18 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
       }
       navigationRef.navigate("Settings");
     },
-    [contacts, navigationRef],
+    [blockedPeerSet, contacts, navigationRef],
   );
 
   const onOpenChat = useCallback(
     (peerId: string, peerName: string, trust: "verified" | "unverified" | "changed_key" = "unverified") => {
       const normalizedPeerId = normalizePeerId(peerId);
       const resolvedPeerName = peerName.trim() || normalizedPeerId;
-      const chatId = ensureChatForPeer(normalizedPeerId, resolvedPeerName, trust);
+      const request = requestsByPeerId.get(normalizedPeerId);
+      const chatId =
+        request
+          ? acceptFriendRequest(normalizedPeerId, resolvedPeerName)
+          : ensureChatForPeer(normalizedPeerId, resolvedPeerName, trust);
       markChatRead(chatId);
       if (navigationRef.isReady()) {
         navigationRef.navigate("Chat", {
@@ -231,7 +283,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
         });
       }
     },
-    [ensureChatForPeer, markChatRead, navigationRef],
+    [acceptFriendRequest, ensureChatForPeer, markChatRead, navigationRef, requestsByPeerId],
   );
 
   const onOpenChatFromChatId = useCallback(
@@ -249,13 +301,16 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
       const knownContact = contactsByPeerId.get(normalizedPeerId);
       const resolvedName = (peerName && peerName.trim()) || knownContact?.name || normalizedPeerId;
       const resolvedTrust = knownContact?.trust ?? "unverified";
+      if (isPeerBlocked(normalizedPeerId)) {
+        throw new Error("Peer is blocked. Unblock before sending.");
+      }
       if (resolvedTrust === "changed_key") {
         throw new Error("Peer key changed. Approve new key before sending messages.");
       }
       const chatId = ensureChatForPeer(normalizedPeerId, resolvedName, resolvedTrust);
       await sendDraft({ chatId, peerId: normalizedPeerId });
     },
-    [contactsByPeerId, ensureChatForPeer, sendDraft],
+    [contactsByPeerId, ensureChatForPeer, isPeerBlocked, sendDraft],
   );
 
   const onRetryCurrentMessage = useCallback(
@@ -291,6 +346,8 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
                 accent={accent}
                 recoveryWords={recoveryWords}
                 phraseValid={phraseValid}
+                identityReady={identityReady}
+                onRestoreIdentity={restoreIdentityFromPhrase}
               />
             )}
           </Stack.Screen>
@@ -317,7 +374,9 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
                 {...props}
                 accent={accent}
                 contacts={contacts}
+                contactRequests={contactRequests}
                 onStartChat={onOpenChat}
+                onSendFriendRequest={sendFriendRequest}
               />
             )}
           </Stack.Screen>
@@ -401,8 +460,26 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
             {(props) => (
               <ContactsScreen
                 contacts={contacts}
+                contactRequests={contactRequests}
+                blockedPeers={blockedPeers}
                 accent={accent}
                 onStartChat={onOpenChat}
+                onAcceptRequest={(peerId, name) => {
+                  const chatId = acceptFriendRequest(peerId, name);
+                  const normalizedPeerId = normalizePeerId(peerId);
+                  const peerName = name?.trim() || normalizedPeerId;
+                  markChatRead(chatId);
+                  if (navigationRef.isReady()) {
+                    navigationRef.navigate("Chat", {
+                      peerId: normalizedPeerId,
+                      peerName,
+                    });
+                  }
+                }}
+                onDeclineRequest={declineFriendRequest}
+                onCancelOutgoingRequest={cancelOutgoingFriendRequest}
+                onBlockPeer={blockPeer}
+                onUnblockPeer={unblockPeer}
               />
             )}
           </Stack.Screen>
@@ -442,7 +519,16 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
               />
             )}
           </Stack.Screen>
-          <Stack.Screen name="Backup" component={BackupScreen} />
+          <Stack.Screen name="Backup">
+            {(props) => (
+              <BackupScreen
+                {...props}
+                accent={accent}
+                onExportBackup={exportBackupPayload}
+                onImportBackup={importBackupPayload}
+              />
+            )}
+          </Stack.Screen>
         </Stack.Navigator>
       </View>
 

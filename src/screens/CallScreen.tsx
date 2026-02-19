@@ -48,7 +48,11 @@ export function CallScreen({
       ? "Ready"
       : callState.phase === "connecting"
         ? "Connecting..."
-        : `${callState.mode.toUpperCase()} • ${formatDuration(callState.durationSec)}`;
+        : callState.phase === "failed"
+          ? "Unavailable"
+          : callState.phase === "ended"
+            ? "Ended"
+            : `${callState.mode.toUpperCase()} • ${formatDuration(callState.durationSec)}`;
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -57,6 +61,7 @@ export function CallScreen({
         <Avatar label={route.params.peerId} size={80} borderColor={rColor} />
         <Text style={styles.peerName}>{route.params.peerId}</Text>
         <Text style={[styles.phaseLabel, { color: rColor }]}>{phaseLabel}</Text>
+        {callState.reason ? <Text style={styles.reasonText}>{callState.reason}</Text> : null}
       </View>
 
       {/* Quality */}
@@ -119,6 +124,12 @@ const styles = StyleSheet.create({
   phaseLabel: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  reasonText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 2,
   },
   qualityCard: {
     width: "100%",

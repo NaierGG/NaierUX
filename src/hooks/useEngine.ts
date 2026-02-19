@@ -6,12 +6,14 @@ import {
   MessengerEngine,
   WebRTCP2PAdapter,
   configureSecurityFromEnvironment,
-  createLocalKeyAgreement,
   createIdentityProfile,
+  createLocalKeyAgreement,
   establishSession,
   generateRecoveryPhrase,
   getCryptoCapability,
   isWebRTCSupported,
+  restoreLocalKeyAgreement,
+  serializeLocalKeyAgreement,
   validateRecoveryPhrase,
 } from "../core";
 import type {
@@ -19,12 +21,14 @@ import type {
   CryptoCapability,
   DisappearPolicy,
   IdentityProfile,
-  PeerKeyEvent,
+  LocalKeyAgreement,
   NetworkAdapter,
+  PeerKeyEvent,
   RouteMode,
   SecurityConfig,
 } from "../core";
 import { peerIdFromFingerprint } from "../state/peer";
+import { loadPersistedIdentityState, savePersistedIdentityState } from "../state/identityStore";
 
 export type SendMessageInput = {
   chatId: string;
@@ -42,12 +46,18 @@ export type IncomingPacketPayload = {
 
 export type PeerKeyEventPayload = PeerKeyEvent;
 
+export type RestoreIdentityResult = {
+  ok: boolean;
+  error?: string;
+};
+
 export type UseEngineResult = {
   engine: MessengerEngine | null;
   identity: IdentityProfile;
   localPeerId: string;
   recoveryWords: string[];
   phraseValid: boolean;
+  identityReady: boolean;
   cryptoCapability: CryptoCapability;
   initError: string | null;
   activeNetworkName: string;
@@ -58,6 +68,7 @@ export type UseEngineResult = {
   setNetworkRoute: (route: RouteMode) => void;
   subscribeIncoming: (handler: (payload: IncomingPacketPayload) => void) => () => void;
   subscribePeerKeys: (handler: (event: PeerKeyEventPayload) => void) => () => void;
+  restoreIdentityFromPhrase: (phraseInput: string) => Promise<RestoreIdentityResult>;
 };
 
 const SECURITY_BOOTSTRAP = configureSecurityFromEnvironment();
@@ -80,10 +91,29 @@ function runtimeEnv(name: string): string | undefined {
 }
 
 const SIGNAL_SERVER_URL = runtimeEnv("NAIER_SIGNALING_URL");
-const SIGNAL_AUTH_TOKEN = runtimeEnv("NAIER_SIGNALING_TOKEN") ?? "dev-signaling-secret";
 const SIGNAL_NAMESPACE = runtimeEnv("NAIER_SIGNAL_NAMESPACE") ?? "naier-mesh-v1";
 const ALLOW_IN_MEMORY_FALLBACK = runtimeEnv("NAIER_ALLOW_IN_MEMORY") === "1";
 const SIGNALING_MODE: "ws-auth" | "in-memory-auth" = SIGNAL_SERVER_URL ? "ws-auth" : "in-memory-auth";
+
+function normalizeRecoveryWords(input: string): string[] {
+  return input
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 0);
+}
+
+function resolveSignalAuthToken(requireExplicitToken: boolean): string {
+  const configured = runtimeEnv("NAIER_SIGNALING_TOKEN")?.trim();
+  if (configured && configured.length >= 16) {
+    return configured;
+  }
+  if (requireExplicitToken) {
+    throw new Error("Set NAIER_SIGNALING_TOKEN (min 16 chars) for authenticated signaling.");
+  }
+  return configured ?? "dev-signaling-secret";
+}
 
 function countInFlight(engine: MessengerEngine | null): number {
   if (!engine) {
@@ -99,7 +129,7 @@ function buildNetworkAdapter(): NetworkAdapter {
     if (SIGNAL_SERVER_URL) {
       const signaling = new AuthenticatedWebSocketSignalingAdapter({
         url: SIGNAL_SERVER_URL,
-        authToken: SIGNAL_AUTH_TOKEN,
+        authToken: resolveSignalAuthToken(true),
         namespace: SIGNAL_NAMESPACE,
         onionMode: "tor",
       });
@@ -118,7 +148,7 @@ function buildNetworkAdapter(): NetworkAdapter {
     if (ALLOW_IN_MEMORY_FALLBACK) {
       const signaling = new InMemorySignalingAdapter({
         namespace: SIGNAL_NAMESPACE,
-        authToken: SIGNAL_AUTH_TOKEN,
+        authToken: resolveSignalAuthToken(false),
         onionMode: "relay2",
       });
       return new WebRTCP2PAdapter(signaling, {
@@ -145,17 +175,31 @@ function buildNetworkAdapter(): NetworkAdapter {
   );
 }
 
+async function persistIdentity(identity: IdentityProfile, agreement: LocalKeyAgreement | null): Promise<void> {
+  const serializedAgreement = await serializeLocalKeyAgreement(agreement);
+  await savePersistedIdentityState({
+    version: 1,
+    identity,
+    keyAgreement: serializedAgreement,
+  });
+}
+
 export function useEngine(): UseEngineResult {
+  const bootstrapWords = useMemo(() => generateRecoveryPhrase(12), []);
+  const bootstrapIdentity = useMemo(() => createIdentityProfile("Naier User", bootstrapWords), [bootstrapWords]);
+
   const [engine, setEngine] = useState<MessengerEngine | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const [activeNetworkName, setActiveNetworkName] = useState("Unavailable");
   const [inFlightCount, setInFlightCount] = useState(0);
+  const [recoveryWords, setRecoveryWords] = useState<string[]>(bootstrapWords);
+  const [identity, setIdentity] = useState<IdentityProfile>(bootstrapIdentity);
+  const [identityReady, setIdentityReady] = useState(false);
 
   const networkAdapterRef = useRef<NetworkAdapter | null>(null);
   const engineRef = useRef<MessengerEngine | null>(null);
+  const localAgreementRef = useRef<LocalKeyAgreement | null>(null);
 
-  const recoveryWords = useMemo(() => generateRecoveryPhrase(12), []);
-  const identity = useMemo(() => createIdentityProfile("Naier User", recoveryWords), [recoveryWords]);
   const localPeerId = useMemo(() => peerIdFromFingerprint(identity.publicFingerprint), [identity.publicFingerprint]);
   const phraseValid = useMemo(() => validateRecoveryPhrase(recoveryWords), [recoveryWords]);
   const cryptoCapability = useMemo(() => getCryptoCapability(), []);
@@ -166,11 +210,66 @@ export function useEngine(): UseEngineResult {
 
   useEffect(() => {
     let active = true;
+    void (async () => {
+      try {
+        const persisted = await loadPersistedIdentityState();
+        if (!active) {
+          return;
+        }
+
+        if (persisted?.identity) {
+          const restoredAgreement = await restoreLocalKeyAgreement(persisted.keyAgreement ?? null);
+          localAgreementRef.current = restoredAgreement;
+          setRecoveryWords(persisted.identity.recoveryWords);
+          setIdentity(persisted.identity);
+          setIdentityReady(true);
+          return;
+        }
+
+        const words = generateRecoveryPhrase(12);
+        const generatedIdentity = createIdentityProfile("Naier User", words);
+        const generatedAgreement = await createLocalKeyAgreement(generatedIdentity.publicFingerprint);
+        localAgreementRef.current = generatedAgreement;
+        await persistIdentity(generatedIdentity, generatedAgreement);
+
+        if (!active) {
+          return;
+        }
+
+        setRecoveryWords(words);
+        setIdentity(generatedIdentity);
+        setIdentityReady(true);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setInitError(error instanceof Error ? error.message : "Failed to initialize local identity.");
+        setIdentityReady(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!identityReady) {
+      return;
+    }
+    let active = true;
 
     const boot = async () => {
       try {
         const localAdapter = buildNetworkAdapter();
-        const localAgreement = await createLocalKeyAgreement(identity.publicFingerprint);
+
+        let localAgreement = localAgreementRef.current;
+        if (!localAgreement || !localAgreement.privateKey) {
+          localAgreement = await createLocalKeyAgreement(identity.publicFingerprint);
+          localAgreementRef.current = localAgreement;
+          await persistIdentity(identity, localAgreement);
+        }
+
         const secureEngine = new MessengerEngine(
           establishSession(identity.publicFingerprint),
           localAdapter,
@@ -209,7 +308,7 @@ export function useEngine(): UseEngineResult {
       }
       engineRef.current = null;
     };
-  }, [identity.publicFingerprint, localPeerId]);
+  }, [identity.publicFingerprint, identityReady, localPeerId]);
 
   useEffect(() => {
     const id = setInterval(syncInFlightCount, 600);
@@ -247,12 +346,39 @@ export function useEngine(): UseEngineResult {
     return engine.subscribePeerKeyEvents(handler);
   }, [engine]);
 
+  const restoreIdentityFromPhrase = useCallback(async (phraseInput: string): Promise<RestoreIdentityResult> => {
+    const words = normalizeRecoveryWords(phraseInput);
+    if (!validateRecoveryPhrase(words)) {
+      return {
+        ok: false,
+        error: "Invalid recovery phrase. Provide 12 or 24 valid words.",
+      };
+    }
+
+    try {
+      const restoredIdentity = createIdentityProfile("Naier User", words);
+      const nextAgreement = await createLocalKeyAgreement(restoredIdentity.publicFingerprint);
+      localAgreementRef.current = nextAgreement;
+      await persistIdentity(restoredIdentity, nextAgreement);
+      setRecoveryWords(words);
+      setIdentity(restoredIdentity);
+      setInitError(null);
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "Failed to restore identity.",
+      };
+    }
+  }, []);
+
   return {
     engine,
     identity,
     localPeerId,
     recoveryWords,
     phraseValid,
+    identityReady,
     cryptoCapability,
     initError,
     activeNetworkName,
@@ -263,5 +389,6 @@ export function useEngine(): UseEngineResult {
     setNetworkRoute,
     subscribeIncoming,
     subscribePeerKeys,
+    restoreIdentityFromPhrase,
   };
 }
