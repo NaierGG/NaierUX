@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthenticatedWebSocketSignalingAdapter,
   InMemoryP2PAdapter,
@@ -6,6 +6,7 @@ import {
   MessengerEngine,
   WebRTCP2PAdapter,
   configureSecurityFromEnvironment,
+  createLocalKeyAgreement,
   createIdentityProfile,
   establishSession,
   generateRecoveryPhrase,
@@ -18,10 +19,12 @@ import type {
   CryptoCapability,
   DisappearPolicy,
   IdentityProfile,
+  PeerKeyEvent,
   NetworkAdapter,
   RouteMode,
   SecurityConfig,
 } from "../core";
+import { peerIdFromFingerprint } from "../state/peer";
 
 export type SendMessageInput = {
   chatId: string;
@@ -31,9 +34,18 @@ export type SendMessageInput = {
   disappearPolicy?: DisappearPolicy;
 };
 
+export type IncomingPacketPayload = {
+  fromPeerId: string;
+  plaintext: string;
+  packetId: string;
+};
+
+export type PeerKeyEventPayload = PeerKeyEvent;
+
 export type UseEngineResult = {
   engine: MessengerEngine | null;
   identity: IdentityProfile;
+  localPeerId: string;
   recoveryWords: string[];
   phraseValid: boolean;
   cryptoCapability: CryptoCapability;
@@ -44,12 +56,11 @@ export type UseEngineResult = {
   signalingMode: "ws-auth" | "in-memory-auth";
   sendMessage: (input: SendMessageInput) => Promise<ChatMessage>;
   setNetworkRoute: (route: RouteMode) => void;
+  subscribeIncoming: (handler: (payload: IncomingPacketPayload) => void) => () => void;
+  subscribePeerKeys: (handler: (event: PeerKeyEventPayload) => void) => () => void;
 };
 
 const SECURITY_BOOTSTRAP = configureSecurityFromEnvironment();
-const LOCAL_PEER_ID = "peer-naier-local";
-const ACTIVE_CHAT_PEER_ID = "peer-astra";
-const SIGNAL_NAMESPACE = "naier-demo-mesh";
 
 function runtimeEnv(name: string): string | undefined {
   try {
@@ -70,6 +81,8 @@ function runtimeEnv(name: string): string | undefined {
 
 const SIGNAL_SERVER_URL = runtimeEnv("NAIER_SIGNALING_URL");
 const SIGNAL_AUTH_TOKEN = runtimeEnv("NAIER_SIGNALING_TOKEN") ?? "dev-signaling-secret";
+const SIGNAL_NAMESPACE = runtimeEnv("NAIER_SIGNAL_NAMESPACE") ?? "naier-mesh-v1";
+const ALLOW_IN_MEMORY_FALLBACK = runtimeEnv("NAIER_ALLOW_IN_MEMORY") === "1";
 const SIGNALING_MODE: "ws-auth" | "in-memory-auth" = SIGNAL_SERVER_URL ? "ws-auth" : "in-memory-auth";
 
 function countInFlight(engine: MessengerEngine | null): number {
@@ -81,6 +94,57 @@ function countInFlight(engine: MessengerEngine | null): number {
     .filter((envelope) => envelope.state === "queued_local" || envelope.state === "sending").length;
 }
 
+function buildNetworkAdapter(): NetworkAdapter {
+  if (isWebRTCSupported()) {
+    if (SIGNAL_SERVER_URL) {
+      const signaling = new AuthenticatedWebSocketSignalingAdapter({
+        url: SIGNAL_SERVER_URL,
+        authToken: SIGNAL_AUTH_TOKEN,
+        namespace: SIGNAL_NAMESPACE,
+        onionMode: "tor",
+      });
+      return new WebRTCP2PAdapter(signaling, {
+        reconnectMaxAttempts: 6,
+        reconnectBaseDelayMs: 400,
+        candidatePolicyByRoute: {
+          "Direct P2P": "all",
+          "2-hop Relay": "relay",
+          Tor: "relay",
+        },
+        renegotiateOnRouteSwitch: true,
+      });
+    }
+
+    if (ALLOW_IN_MEMORY_FALLBACK) {
+      const signaling = new InMemorySignalingAdapter({
+        namespace: SIGNAL_NAMESPACE,
+        authToken: SIGNAL_AUTH_TOKEN,
+        onionMode: "relay2",
+      });
+      return new WebRTCP2PAdapter(signaling, {
+        reconnectMaxAttempts: 4,
+        reconnectBaseDelayMs: 300,
+        candidatePolicyByRoute: {
+          "Direct P2P": "all",
+          "2-hop Relay": "all",
+          Tor: "relay",
+        },
+        renegotiateOnRouteSwitch: true,
+      });
+    }
+
+    throw new Error("Missing NAIER_SIGNALING_URL. Configure a signaling server for real peer messaging.");
+  }
+
+  if (ALLOW_IN_MEMORY_FALLBACK) {
+    return new InMemoryP2PAdapter();
+  }
+
+  throw new Error(
+    "WebRTC runtime unavailable. Use web runtime or install native WebRTC support. Set NAIER_ALLOW_IN_MEMORY=1 only for local demo fallback.",
+  );
+}
+
 export function useEngine(): UseEngineResult {
   const [engine, setEngine] = useState<MessengerEngine | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
@@ -88,11 +152,11 @@ export function useEngine(): UseEngineResult {
   const [inFlightCount, setInFlightCount] = useState(0);
 
   const networkAdapterRef = useRef<NetworkAdapter | null>(null);
-  const remotePeerAdapterRef = useRef<NetworkAdapter | null>(null);
   const engineRef = useRef<MessengerEngine | null>(null);
 
   const recoveryWords = useMemo(() => generateRecoveryPhrase(12), []);
   const identity = useMemo(() => createIdentityProfile("Naier User", recoveryWords), [recoveryWords]);
+  const localPeerId = useMemo(() => peerIdFromFingerprint(identity.publicFingerprint), [identity.publicFingerprint]);
   const phraseValid = useMemo(() => validateRecoveryPhrase(recoveryWords), [recoveryWords]);
   const cryptoCapability = useMemo(() => getCryptoCapability(), []);
 
@@ -102,102 +166,23 @@ export function useEngine(): UseEngineResult {
 
   useEffect(() => {
     let active = true;
-    let unsubscribeRemotePeer = () => {};
 
     const boot = async () => {
       try {
-        let localAdapter: NetworkAdapter;
-        let remoteAdapter: NetworkAdapter;
-
-        if (isWebRTCSupported()) {
-          if (SIGNAL_SERVER_URL) {
-            const localSignaling = new AuthenticatedWebSocketSignalingAdapter({
-              url: SIGNAL_SERVER_URL,
-              authToken: SIGNAL_AUTH_TOKEN,
-              namespace: SIGNAL_NAMESPACE,
-              onionMode: "tor",
-            });
-            const remoteSignaling = new AuthenticatedWebSocketSignalingAdapter({
-              url: SIGNAL_SERVER_URL,
-              authToken: SIGNAL_AUTH_TOKEN,
-              namespace: SIGNAL_NAMESPACE,
-              onionMode: "tor",
-            });
-            localAdapter = new WebRTCP2PAdapter(localSignaling, {
-              reconnectMaxAttempts: 6,
-              reconnectBaseDelayMs: 400,
-              candidatePolicyByRoute: {
-                "Direct P2P": "all",
-                "2-hop Relay": "relay",
-                Tor: "relay",
-              },
-              renegotiateOnRouteSwitch: true,
-            });
-            remoteAdapter = new WebRTCP2PAdapter(remoteSignaling, {
-              reconnectMaxAttempts: 6,
-              reconnectBaseDelayMs: 400,
-              candidatePolicyByRoute: {
-                "Direct P2P": "all",
-                "2-hop Relay": "relay",
-                Tor: "relay",
-              },
-              renegotiateOnRouteSwitch: true,
-            });
-          } else {
-            const localSignaling = new InMemorySignalingAdapter({
-              namespace: SIGNAL_NAMESPACE,
-              authToken: SIGNAL_AUTH_TOKEN,
-              onionMode: "relay2",
-            });
-            const remoteSignaling = new InMemorySignalingAdapter({
-              namespace: SIGNAL_NAMESPACE,
-              authToken: SIGNAL_AUTH_TOKEN,
-              onionMode: "relay2",
-            });
-            localAdapter = new WebRTCP2PAdapter(localSignaling, {
-              reconnectMaxAttempts: 4,
-              reconnectBaseDelayMs: 300,
-              candidatePolicyByRoute: {
-                "Direct P2P": "all",
-                "2-hop Relay": "all",
-                Tor: "relay",
-              },
-              renegotiateOnRouteSwitch: true,
-            });
-            remoteAdapter = new WebRTCP2PAdapter(remoteSignaling, {
-              reconnectMaxAttempts: 4,
-              reconnectBaseDelayMs: 300,
-              candidatePolicyByRoute: {
-                "Direct P2P": "all",
-                "2-hop Relay": "all",
-                Tor: "relay",
-              },
-              renegotiateOnRouteSwitch: true,
-            });
-          }
-        } else {
-          localAdapter = new InMemoryP2PAdapter();
-          remoteAdapter = new InMemoryP2PAdapter();
-        }
-
+        const localAdapter = buildNetworkAdapter();
+        const localAgreement = await createLocalKeyAgreement(identity.publicFingerprint);
         const secureEngine = new MessengerEngine(
           establishSession(identity.publicFingerprint),
           localAdapter,
-          LOCAL_PEER_ID,
+          localPeerId,
+          localAgreement,
         );
 
         networkAdapterRef.current = localAdapter;
-        remotePeerAdapterRef.current = remoteAdapter;
-
-        await remoteAdapter.start(ACTIVE_CHAT_PEER_ID);
-        unsubscribeRemotePeer = remoteAdapter.subscribePackets(() => {
-          // Companion peer for local signaling and packet loop.
-        });
-
         await secureEngine.start();
+
         if (!active) {
           await secureEngine.stop();
-          await remoteAdapter.stop();
           return;
         }
 
@@ -218,18 +203,13 @@ export function useEngine(): UseEngineResult {
 
     return () => {
       active = false;
-      unsubscribeRemotePeer();
       const currentEngine = engineRef.current;
-      const remotePeer = remotePeerAdapterRef.current;
       if (currentEngine) {
         void currentEngine.stop();
       }
-      if (remotePeer) {
-        void remotePeer.stop();
-      }
       engineRef.current = null;
     };
-  }, [identity.publicFingerprint]);
+  }, [identity.publicFingerprint, localPeerId]);
 
   useEffect(() => {
     const id = setInterval(syncInFlightCount, 600);
@@ -253,9 +233,24 @@ export function useEngine(): UseEngineResult {
     [initError],
   );
 
+  const subscribeIncoming = useCallback((handler: (payload: IncomingPacketPayload) => void) => {
+    if (!engine) {
+      return () => {};
+    }
+    return engine.subscribeIncoming(handler);
+  }, [engine]);
+
+  const subscribePeerKeys = useCallback((handler: (event: PeerKeyEventPayload) => void) => {
+    if (!engine) {
+      return () => {};
+    }
+    return engine.subscribePeerKeyEvents(handler);
+  }, [engine]);
+
   return {
     engine,
     identity,
+    localPeerId,
     recoveryWords,
     phraseValid,
     cryptoCapability,
@@ -266,5 +261,7 @@ export function useEngine(): UseEngineResult {
     signalingMode: SIGNALING_MODE,
     sendMessage,
     setNetworkRoute,
+    subscribeIncoming,
+    subscribePeerKeys,
   };
 }

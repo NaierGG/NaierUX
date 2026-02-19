@@ -1,7 +1,7 @@
 ﻿import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CallState } from "../core";
-import { COLORS, routeColor } from "../theme/tokens";
+import { COLORS, glow, routeColor } from "../theme/tokens";
 
 type CallControlsProps = {
   callState: CallState;
@@ -24,27 +24,49 @@ export function CallControls({
   onSwitchRoute,
   onEndCall,
 }: CallControlsProps) {
+  const rColor = routeColor(callState.route);
+
   return (
     <View style={styles.wrap}>
       <Pressable onPress={onStartVoice} style={styles.pill}>
-        <Text style={styles.text}>Start Voice</Text>
+        <Text style={styles.icon}>🎤</Text>
+        <Text style={styles.text}>Voice</Text>
       </Pressable>
       <Pressable onPress={onStartVideo} style={styles.pill}>
-        <Text style={styles.text}>Start Video</Text>
+        <Text style={styles.icon}>📹</Text>
+        <Text style={styles.text}>Video</Text>
       </Pressable>
-      <Pressable onPress={onToggleMute} style={styles.pill}>
-        <Text style={styles.text}>{callState.muted ? "Unmute" : "Mute"}</Text>
+      <Pressable
+        onPress={onToggleMute}
+        style={[styles.pill, callState.muted ? styles.activePill : null]}
+      >
+        <Text style={styles.icon}>🔇</Text>
+        <Text style={[styles.text, callState.muted ? styles.activeText : null]}>
+          {callState.muted ? "Unmute" : "Mute"}
+        </Text>
       </Pressable>
-      <Pressable onPress={onToggleCamera} style={styles.pill}>
-        <Text style={styles.text}>{callState.cameraEnabled ? "Camera" : "Camera Off"}</Text>
+      <Pressable
+        onPress={onToggleCamera}
+        style={[styles.pill, !callState.cameraEnabled ? styles.activePill : null]}
+      >
+        <Text style={styles.icon}>📷</Text>
+        <Text style={[styles.text, !callState.cameraEnabled ? styles.activeText : null]}>
+          {callState.cameraEnabled ? "Cam" : "Cam Off"}
+        </Text>
       </Pressable>
       <Pressable onPress={onToggleSpeaker} style={styles.pill}>
-        <Text style={styles.text}>{callState.speakerEnabled ? "Speaker" : "Speaker Off"}</Text>
+        <Text style={styles.icon}>🔊</Text>
+        <Text style={styles.text}>{callState.speakerEnabled ? "Spkr" : "Spkr Off"}</Text>
       </Pressable>
-      <Pressable onPress={onSwitchRoute} style={[styles.pill, { borderColor: routeColor(callState.route) }]}>
-        <Text style={[styles.text, { color: routeColor(callState.route) }]}>Switch Route</Text>
+      <Pressable
+        onPress={onSwitchRoute}
+        style={[styles.pill, { borderColor: glow(rColor, 0.3) }]}
+      >
+        <Text style={styles.icon}>🔀</Text>
+        <Text style={[styles.text, { color: rColor }]}>Route</Text>
       </Pressable>
       <Pressable onPress={onEndCall} style={[styles.pill, styles.endPill]}>
+        <Text style={styles.icon}>✕</Text>
         <Text style={[styles.text, styles.endText]}>End</Text>
       </Pressable>
     </View>
@@ -60,15 +82,28 @@ const styles = StyleSheet.create({
   pill: {
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
-    backgroundColor: "#131313",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  activePill: {
+    borderColor: COLORS.accentMain,
+    backgroundColor: "rgba(0, 255, 136, 0.08)",
+  },
+  icon: {
+    fontSize: 14,
   },
   text: {
     color: COLORS.textSecondary,
     fontSize: 12,
     fontWeight: "500",
+  },
+  activeText: {
+    color: COLORS.accentMain,
   },
   endPill: {
     borderColor: COLORS.danger,

@@ -1,13 +1,17 @@
-﻿import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ChatMessage } from "../core";
 import { COLORS } from "../theme/tokens";
 
 type MessageBubbleProps = {
   message: ChatMessage;
+  accent?: string;
+  onRetry?: (messageId: string) => void;
 };
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, accent = COLORS.accentMain, onRetry }: MessageBubbleProps) {
+  const showRetry = message.fromMe && message.delivery === "failed" && Boolean(onRetry);
+
   return (
     <View
       style={[
@@ -20,6 +24,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {message.sentAtLabel} | {message.delivery}
         {message.routeUsed ? ` | ${message.routeUsed}` : ""}
       </Text>
+      {showRetry ? (
+        <Pressable onPress={() => onRetry?.(message.id)} style={[styles.retryButton, { borderColor: accent }]}>
+          <Text style={[styles.retryText, { color: accent }]}>Retry</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -27,32 +36,42 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 const styles = StyleSheet.create({
   bubble: {
     maxWidth: "78%",
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 18,
+    padding: 12,
     borderWidth: 1,
   },
   myBubble: {
     alignSelf: "flex-end",
     backgroundColor: COLORS.myBubble,
-    borderColor: COLORS.accentCyber,
-    shadowColor: "rgba(0,212,255,0.3)",
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
+    borderColor: COLORS.myBubbleBorder,
+    borderBottomRightRadius: 6,
   },
   peerBubble: {
     alignSelf: "flex-start",
     backgroundColor: COLORS.peerBubble,
-    borderColor: "#222222",
+    borderColor: COLORS.peerBubbleBorder,
+    borderBottomLeftRadius: 6,
   },
   text: {
     color: COLORS.textPrimary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   meta: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
+    color: COLORS.textMuted,
+    fontSize: 10,
     marginTop: 5,
+  },
+  retryButton: {
+    alignSelf: "flex-end",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginTop: 6,
+  },
+  retryText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
 });

@@ -22,6 +22,14 @@ export interface ChatPreview {
   trust: TrustState;
 }
 
+export interface ContactProfile {
+  peerId: string;
+  name: string;
+  fingerprintPreview: string;
+  online: boolean;
+  trust: TrustState;
+}
+
 export interface ChatMessage {
   id: string;
   chatId: string;
@@ -41,6 +49,12 @@ export interface RouteStatus {
   label: string;
 }
 
+export interface KeyAgreementDescriptor {
+  curve: "P-256";
+  keyId: string;
+  publicKeyHex: string;
+}
+
 export interface EncryptedPacket {
   id: string;
   scheme: "AES-256-GCM/HKDF-SHA256/HMAC-SHA256" | "LEGACY-DEMO";
@@ -49,6 +63,8 @@ export interface EncryptedPacket {
   ratchetEpoch: number;
   ciphertext: string;
   mac: string;
+  controlType?: "hello" | "key_exchange" | "ack";
+  keyAgreement?: KeyAgreementDescriptor;
   route: RouteMode;
   createdAtIso: string;
 }

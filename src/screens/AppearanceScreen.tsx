@@ -18,10 +18,11 @@ const MODES: AccentMode[] = ["Neon Green", "Neon Red", "Highlight Purple", "Cybe
 export function AppearanceScreen({ accentMode, onSetAccentMode, accent }: AppearanceScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Appearance" subtitle="Dark-only mode enforced" />
+      <AppHeader title="Appearance" subtitle="Dark mode enabled (locked)" />
+
       <Card>
-        <Text style={styles.largeLabel}>Accent Picker</Text>
-        <View style={styles.rowWrap}>
+        <Text style={styles.sectionLabel}>Accent Color</Text>
+        <View style={styles.swatchRow}>
           {MODES.map((mode) => (
             <Pill
               key={mode}
@@ -33,8 +34,14 @@ export function AppearanceScreen({ accentMode, onSetAccentMode, accent }: Appear
           ))}
         </View>
       </Card>
+
       <Card accent={accent}>
-        <Text style={styles.body}>Preview bubble + action glow updates live.</Text>
+        <Text style={styles.body}>Preview: bubble + action glow updates live.</Text>
+      </Card>
+
+      <Card>
+        <Text style={styles.sectionLabel}>Typography</Text>
+        <Text style={styles.body}>Sora (body) + JetBrains Mono (code)</Text>
       </Card>
     </ScrollView>
   );
@@ -43,26 +50,25 @@ export function AppearanceScreen({ accentMode, onSetAccentMode, accent }: Appear
 const styles = StyleSheet.create({
   content: {
     padding: 16,
-    paddingBottom: 28,
-    gap: 12,
+    paddingBottom: 32,
+    gap: 14,
   },
-  largeLabel: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-    letterSpacing: -0.2,
+  sectionLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 10,
   },
   body: {
-    color: COLORS.textPrimary,
+    color: COLORS.textSecondary,
     fontSize: 14,
-    lineHeight: 20,
-    letterSpacing: -0.1,
+    lineHeight: 21,
   },
-  rowWrap: {
+  swatchRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 6,
   },
 });

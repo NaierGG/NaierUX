@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
 import { COLORS } from "../theme/tokens";
@@ -13,25 +13,32 @@ export type SplashScreenProps = NativeStackScreenProps<RootStackParamList, "Spla
 export function SplashScreen({ navigation, accent }: SplashScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Naier" subtitle="Talk without traces. Connect without masters." />
-      <Card accent={accent}>
-        <Text style={styles.largeLabel}>Onboarding 1/3</Text>
-        <Text style={styles.body}>
-          Identity is local-first. No phone number, no central account authority.
-        </Text>
-      </Card>
+      <View style={styles.hero}>
+        <Text style={styles.logo}>Naier</Text>
+        <Text style={styles.tagline}>Talk without traces</Text>
+      </View>
+
       <Card>
-        <Text style={styles.largeLabel}>Onboarding 2/3</Text>
+        <Text style={styles.cardTitle}>Local-first identity</Text>
         <Text style={styles.body}>
-          Messages are E2EE with forward secrecy and route fallback transparency.
+          Your keys never leave this device. No server can impersonate you.
         </Text>
       </Card>
+
       <Card>
-        <Text style={styles.largeLabel}>Onboarding 3/3</Text>
+        <Text style={styles.cardTitle}>Route-aware messaging</Text>
         <Text style={styles.body}>
-          Control route policy, trust fingerprints, and disappearing defaults before first chat.
+          Choose Direct P2P, 2-hop Relay, or Tor per conversation thread.
         </Text>
       </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>Zero metadata</Text>
+        <Text style={styles.body}>
+          No phone number. No cloud. Disappearing messages by default.
+        </Text>
+      </Card>
+
       <Pressable
         onPress={() => navigation.navigate("Recovery")}
         style={[styles.primaryButton, { borderColor: accent }]}
@@ -44,34 +51,46 @@ export function SplashScreen({ navigation, accent }: SplashScreenProps) {
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
-    paddingBottom: 28,
-    gap: 12,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 14,
   },
-  largeLabel: {
+  hero: {
+    alignItems: "center",
+    paddingVertical: 32,
+    gap: 6,
+  },
+  logo: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: COLORS.accentMain,
+    letterSpacing: -1,
+  },
+  tagline: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+  cardTitle: {
     color: COLORS.textPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     marginBottom: 4,
-    letterSpacing: -0.2,
   },
   body: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontSize: 13,
     lineHeight: 20,
-    letterSpacing: -0.1,
   },
   primaryButton: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111111",
+    backgroundColor: "rgba(0, 255, 136, 0.06)",
   },
   primaryButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    letterSpacing: -0.1,
   },
 });

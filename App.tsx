@@ -1,9 +1,24 @@
-﻿import React, { useState } from "react";
-import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import React, { useState } from "react";
+import { StatusBar as NativeStatusBar } from "react-native";
+import { DarkTheme, NavigationContainer, useNavigationContainerRef, type Theme } from "@react-navigation/native";
 import { AppStateProvider } from "./src/context/AppStateContext";
 import { EngineProvider } from "./src/context/EngineContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import type { RootStackParamList } from "./src/navigation/types";
+import { COLORS } from "./src/theme/tokens";
+
+const NAV_DARK_THEME: Theme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: COLORS.accentMain,
+    background: COLORS.bg0,
+    card: COLORS.bg0,
+    text: COLORS.textPrimary,
+    border: COLORS.cardBorder,
+    notification: COLORS.accentAlert,
+  },
+};
 
 function resolveRouteName(name: string | undefined): keyof RootStackParamList {
   if (name === "Splash") return "Splash";
@@ -28,7 +43,9 @@ export default function App() {
   return (
     <AppStateProvider>
       <EngineProvider>
+        <NativeStatusBar barStyle="light-content" backgroundColor={COLORS.bg0} />
         <NavigationContainer
+          theme={NAV_DARK_THEME}
           ref={navigationRef}
           onReady={() => setCurrentRouteName(resolveRouteName(navigationRef.getCurrentRoute()?.name))}
           onStateChange={() => setCurrentRouteName(resolveRouteName(navigationRef.getCurrentRoute()?.name))}

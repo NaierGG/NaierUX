@@ -10,12 +10,18 @@ import type {
   SecurityConfig,
 } from "../core";
 import { useCall } from "../hooks/useCall";
-import { useEngine, type SendMessageInput } from "../hooks/useEngine";
+import {
+  useEngine,
+  type IncomingPacketPayload,
+  type PeerKeyEventPayload,
+  type SendMessageInput,
+} from "../hooks/useEngine";
 
 type EngineContextValue = {
   engine: MessengerEngine | null;
   callAdapter: MockWebRTCCallAdapter | null;
   identity: IdentityProfile;
+  localPeerId: string;
   recoveryWords: string[];
   phraseValid: boolean;
   cryptoCapability: CryptoCapability;
@@ -26,6 +32,8 @@ type EngineContextValue = {
   securityBootstrap: SecurityConfig;
   sendMessage: (input: SendMessageInput) => Promise<ChatMessage>;
   setNetworkRoute: (route: RouteMode) => void;
+  subscribeIncoming: (handler: (payload: IncomingPacketPayload) => void) => () => void;
+  subscribePeerKeys: (handler: (event: PeerKeyEventPayload) => void) => () => void;
   callState: CallState;
   startCall: (peerId: string, mode: "voice" | "video", route: RouteMode) => Promise<void>;
   endCall: (reason?: string) => Promise<void>;
@@ -41,6 +49,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
   const {
     engine,
     identity,
+    localPeerId,
     recoveryWords,
     phraseValid,
     cryptoCapability,
@@ -51,6 +60,8 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     signalingMode,
     sendMessage,
     setNetworkRoute,
+    subscribeIncoming,
+    subscribePeerKeys,
   } = useEngine();
 
   const {
@@ -69,6 +80,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       engine,
       callAdapter,
       identity,
+      localPeerId,
       recoveryWords,
       phraseValid,
       cryptoCapability,
@@ -79,6 +91,8 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       securityBootstrap,
       sendMessage,
       setNetworkRoute,
+      subscribeIncoming,
+      subscribePeerKeys,
       callState,
       startCall,
       endCall,
@@ -95,6 +109,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       endCall,
       engine,
       identity,
+      localPeerId,
       inFlightCount,
       initError,
       phraseValid,
@@ -102,6 +117,8 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       securityBootstrap,
       sendMessage,
       setNetworkRoute,
+      subscribeIncoming,
+      subscribePeerKeys,
       signalingMode,
       startCall,
       switchCallRoute,

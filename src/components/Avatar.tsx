@@ -12,9 +12,10 @@ type AvatarProps = {
 export function Avatar({
   label,
   size = 44,
-  borderColor = COLORS.accentCyber,
+  borderColor = COLORS.glassBorderHover,
   online = false,
 }: AvatarProps) {
+  const fontSize = size > 60 ? 24 : size > 36 ? 16 : 12;
   return (
     <View style={styles.wrap}>
       <View
@@ -28,9 +29,9 @@ export function Avatar({
           },
         ]}
       >
-        <Text style={styles.avatarText}>{label.slice(0, 1).toUpperCase()}</Text>
+        <Text style={[styles.avatarText, { fontSize }]}>{label.slice(0, 1).toUpperCase()}</Text>
       </View>
-      {online ? <View style={styles.onlineDot} /> : null}
+      {online ? <View style={[styles.onlineDot, { borderColor: COLORS.bg0 }]} /> : null}
     </View>
   );
 }
@@ -40,24 +41,23 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   avatar: {
-    borderWidth: 1,
-    backgroundColor: "#0F0F0F",
+    borderWidth: 1.5,
+    backgroundColor: COLORS.bgElevated,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
     color: COLORS.textPrimary,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   onlineDot: {
     position: "absolute",
     right: 0,
     bottom: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: COLORS.accentMain,
-    borderWidth: 1,
-    borderColor: COLORS.black,
+    borderWidth: 2,
   },
 });

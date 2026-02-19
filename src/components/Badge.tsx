@@ -16,16 +16,16 @@ export function Badge({ label, backgroundColor }: BadgeProps) {
 
 const styles = StyleSheet.create({
   badge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 6,
   },
   badgeText: {
-    color: "#000000",
+    color: "#050810",
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });

@@ -1,7 +1,6 @@
-﻿import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ChatMessage, DisappearPolicy, RouteMode } from "../core";
-import { CHAT_MESSAGES } from "../state/mockData";
 
 export type SendMessageFn = (input: {
   chatId: string;
@@ -18,6 +17,7 @@ type UseMessagesOptions = {
   cryptoScheme: string;
   messages?: ChatMessage[];
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>;
+  onThreadActivity?: (activity: { chatId: string; text: string; fromMe: boolean }) => void;
 };
 
 export type SendDraftInput = {
@@ -25,13 +25,24 @@ export type SendDraftInput = {
   peerId: string;
 };
 
+export type RetryMessageInput = {
+  messageId: string;
+  chatId: string;
+  peerId: string;
+};
+
 export type UseMessagesResult = {
   messages: ChatMessage[];
   sendDraft: (input: SendDraftInput) => Promise<void>;
+  retryMessage: (input: RetryMessageInput) => Promise<void>;
   draft: string;
   setDraft: (value: string) => void;
   sending: boolean;
 };
+
+function nowLabel(): string {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 
 export function useMessages({
   route,
@@ -40,8 +51,9 @@ export function useMessages({
   cryptoScheme,
   messages,
   setMessages,
+  onThreadActivity,
 }: UseMessagesOptions): UseMessagesResult {
-  const [internalMessages, setInternalMessages] = useState<ChatMessage[]>(CHAT_MESSAGES);
+  const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -79,6 +91,7 @@ export function useMessages({
       };
 
       effectiveSetMessages((prev) => [...prev, optimistic]);
+      onThreadActivity?.({ chatId, text: trimmed, fromMe: true });
       setDraft("");
       setSending(true);
 
@@ -111,12 +124,78 @@ export function useMessages({
         setSending(false);
       }
     },
-    [cryptoScheme, disappearPolicy, draft, effectiveSetMessages, route, sendMessage, sending],
+    [cryptoScheme, disappearPolicy, draft, effectiveSetMessages, onThreadActivity, route, sendMessage, sending],
+  );
+
+  const retryMessage = useCallback(
+    async ({ messageId, chatId, peerId }: RetryMessageInput) => {
+      const existing = effectiveMessages.find((message) => message.id === messageId);
+      if (!existing || !existing.fromMe || existing.delivery !== "failed" || sending) {
+        return;
+      }
+
+      effectiveSetMessages((prev) =>
+        prev.map((message) =>
+          message.id === messageId ? { ...message, delivery: "sending", sentAtLabel: "retrying" } : message,
+        ),
+      );
+
+      setSending(true);
+      try {
+        const sent = await sendMessage({
+          chatId,
+          toPeerId: peerId,
+          text: existing.text,
+          route,
+          disappearPolicy,
+        });
+
+        effectiveSetMessages((prev) =>
+          prev.map((message) =>
+            message.id === messageId
+              ? {
+                  ...sent,
+                  id: message.id,
+                  text: existing.text,
+                }
+              : message,
+          ),
+        );
+        onThreadActivity?.({ chatId, text: existing.text, fromMe: true });
+      } catch {
+        effectiveSetMessages((prev) =>
+          prev.map((message) =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  delivery: "failed",
+                  routeUsed: route,
+                  cipherSuite: cryptoScheme,
+                  sentAtLabel: nowLabel(),
+                }
+              : message,
+          ),
+        );
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      cryptoScheme,
+      disappearPolicy,
+      effectiveMessages,
+      effectiveSetMessages,
+      onThreadActivity,
+      route,
+      sendMessage,
+      sending,
+    ],
   );
 
   return {
     messages: effectiveMessages,
     sendDraft,
+    retryMessage,
     draft,
     setDraft,
     sending,

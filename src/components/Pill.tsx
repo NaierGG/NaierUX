@@ -17,11 +17,11 @@ export function Pill({ label, color, active = false, onPress }: PillProps) {
         styles.pill,
         active
           ? {
-              borderColor: color,
-              shadowColor: glow(color),
-              shadowOpacity: 0.45,
-              backgroundColor: "#101010",
-            }
+            borderColor: glow(color, 0.4),
+            backgroundColor: glow(color, 0.1),
+            shadowColor: color,
+            shadowOpacity: 0.2,
+          }
           : null,
       ]}
     >
@@ -32,14 +32,14 @@ export function Pill({ label, color, active = false, onPress }: PillProps) {
 
 const styles = StyleSheet.create({
   pill: {
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "#131313",
+    borderColor: COLORS.glassBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: "transparent",
     shadowOpacity: 0,
-    shadowRadius: 8,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
   pillText: {

@@ -3,129 +3,203 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Naier Web</title>
+    <meta name="description" content="Naier — Talk without traces. Decentralized encrypted mesh messenger." />
+    <meta name="theme-color" content="#05060a" />
+    <title>Naier Mesh</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="noise"></div>
-    <main class="shell">
+    <!-- Aurora Background -->
+    <div class="aurora-bg"></div>
+
+    <!-- App Shell -->
+    <div class="app-shell">
+      <!-- Status Bar -->
       <header class="status-bar">
-        <span>9:41</span>
-        <span>|||| 87%</span>
+        <div class="status-left">
+          <span class="mesh-dot"></span>
+          <span>Mesh Active</span>
+          <span>•</span>
+          <span id="clock">09:41</span>
+        </div>
+        <span>E2EE • AES-256-GCM</span>
       </header>
 
-      <section class="hero">
-        <h1>Naier</h1>
-        <p>Talk without traces. Connect without masters.</p>
-      </section>
-
-      <section class="network-banner">
-        <div class="network-left">
-          <span class="network-dot"></span>
-          <span>Encrypted Network Active</span>
-        </div>
-        <span class="network-icon">📶</span>
-      </section>
-
-      <section class="board">
-        <aside class="panel chats">
-          <div class="panel-head">
-            <h2>Chats</h2>
-            <button class="btn ghost">New</button>
-          </div>
-          <div class="route-strip" id="routeStrip">
-            <div class="route-top">
-              <strong id="routeLabel">Direct P2P</strong>
-              <span id="routeMeta">Low latency, peer direct</span>
+      <!-- Layout -->
+      <div class="layout" id="layout">
+        <!-- ═══ SIDEBAR ═══ -->
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-brand">
+              <h1>Naier</h1>
+              <button class="new-chat-fab" id="newChatFab" type="button" title="New Chat">+</button>
             </div>
-            <div class="route-controls">
-              <button class="pill active" data-route="Direct P2P">Direct P2P</button>
-              <button class="pill" data-route="2-hop Relay">2-hop Relay</button>
-              <button class="pill" data-route="Tor">Tor</button>
+
+            <!-- Route Filter Tabs -->
+            <div class="route-tabs" id="routeTabs">
+              <button class="route-tab active" data-route="Direct P2P" type="button">
+                <span class="tab-dot"></span>P2P
+              </button>
+              <button class="route-tab" data-route="2-hop Relay" type="button">
+                <span class="tab-dot"></span>Relay
+              </button>
+              <button class="route-tab" data-route="Tor" type="button">
+                <span class="tab-dot"></span>Tor
+              </button>
+            </div>
+
+            <!-- Search -->
+            <div class="sidebar-search">
+              <span class="search-icon">⌕</span>
+              <input id="chatSearch" type="text" placeholder="Search chats..." />
             </div>
           </div>
 
+          <!-- Chat List -->
           <div class="chat-list" id="chatList"></div>
         </aside>
 
-        <section class="panel chat-room">
-          <div class="panel-head">
-            <div>
-              <h2 id="roomTitle">Astra</h2>
-              <p id="roomSub">Direct P2P | 48ms</p>
+        <!-- ═══ MAIN CHAT VIEW ═══ -->
+        <section class="main-view">
+          <!-- Chat Header -->
+          <div class="chat-header">
+            <button class="back-btn" id="backBtn" type="button">←</button>
+            <div class="avatar header-avatar" id="headerAvatar">A</div>
+            <div class="header-meta">
+              <div class="header-name" id="roomTitle">Astra</div>
+              <div class="header-route">
+                <span class="route-dot" id="headerRouteDot"></span>
+                <span id="roomSub">Direct P2P • 44ms</span>
+              </div>
             </div>
-            <button class="btn cyan" id="callQuickStart">Call</button>
+            <div class="header-actions">
+              <button class="header-action-btn" id="callQuickStart" type="button" title="Voice Call">📞</button>
+              <button class="header-action-btn" id="videoQuickStart" type="button" title="Video Call">📹</button>
+            </div>
           </div>
 
-          <div class="trust-row">
+          <!-- Security Banner -->
+          <div class="security-banner">
+            <span class="lock-icon">🔒</span>
+            <span id="trustBadge">Verified</span>
+            <span class="sep">|</span>
             <span>Screenshot block: ON</span>
+            <span class="sep">|</span>
             <span>Anti-delete: ON</span>
-            <span id="queueState">Queue in-flight: 0</span>
+            <span class="sep">|</span>
+            <span id="queueState">Queue: 0</span>
           </div>
 
-          <div class="call-strip" id="callStrip">
-            <strong id="callPhase">idle</strong>
-            <span id="callMeta">Encrypted channel ready</span>
-            <div class="call-actions">
-              <button class="pill" id="callVoice">Start Voice</button>
-              <button class="pill" id="callVideo">Start Video</button>
-              <button class="pill" id="callMute">Mute</button>
-              <button class="pill" id="callCamera">Camera</button>
-              <button class="pill" id="callSpeaker">Speaker</button>
-              <button class="pill" id="callRoute">Switch Route</button>
-              <button class="pill danger" id="callEnd">End</button>
+          <!-- Message Area -->
+          <div class="message-area" id="messageList">
+            <div class="empty-chat" id="emptyChat">
+              <div class="empty-icon">🔐</div>
+              <p>No messages yet.<br/>Start the encrypted conversation.</p>
             </div>
           </div>
 
-          <div class="message-list" id="messageList"></div>
-
-          <div class="policy-row">
-            <span>Disappearing</span>
-            <button class="pill active" data-policy="5 min">5 min</button>
-            <button class="pill" data-policy="1 h">1 h</button>
-            <button class="pill" data-policy="24 h">24 h</button>
-            <button class="pill" data-policy="30 d">30 d</button>
+          <!-- Disappearing Policy -->
+          <div class="policy-bar">
+            <span class="policy-label">Disappearing:</span>
+            <button class="pill active" data-policy="5 min" type="button">5 min</button>
+            <button class="pill" data-policy="1 h" type="button">1 h</button>
+            <button class="pill" data-policy="24 h" type="button">24 h</button>
+            <button class="pill" data-policy="30 d" type="button">30 d</button>
           </div>
 
+          <!-- Composer -->
           <form class="composer" id="composer">
-            <input id="draft" type="text" placeholder="Encrypted message" />
-            <button class="btn accent" type="submit">Send</button>
+            <input id="draft" type="text" placeholder="Encrypted message..." autocomplete="off" />
+            <button class="send-btn" type="submit" title="Send">➤</button>
           </form>
         </section>
 
-        <aside class="panel side">
-          <h2>Identity</h2>
-          <p class="muted">Self-sovereign profile</p>
-          <div class="key-block">
-            <small>Fingerprint</small>
-            <strong id="fingerprint">8A4D:2C9F:77E1:43B0</strong>
+        <!-- ═══ INFO PANEL ═══ -->
+        <aside class="info-panel">
+          <div class="info-section">
+            <h3>Identity</h3>
+            <div class="info-card">
+              <div class="info-label">Fingerprint</div>
+              <div class="info-value" id="fingerprint">8A4D:2C9F:77E1:43B0</div>
+            </div>
           </div>
-          <div class="key-block">
-            <small>Route policy</small>
-            <strong id="routePolicy">Direct P2P</strong>
+
+          <div class="info-section">
+            <h3>Route Policy</h3>
+            <div class="info-card">
+              <div class="info-label">Current Route</div>
+              <div class="info-value" id="routePolicy">Direct P2P</div>
+            </div>
+            <div class="info-card" style="margin-top:8px">
+              <div class="info-label">Signal Mode</div>
+              <div class="info-value">In-memory auth</div>
+            </div>
           </div>
-          <h3>Accent</h3>
-          <div class="accent-grid">
-            <button class="swatch active" data-accent="#00FF88" style="--sw:#00FF88"></button>
-            <button class="swatch" data-accent="#FF2E63" style="--sw:#FF2E63"></button>
-            <button class="swatch" data-accent="#7C3AED" style="--sw:#7C3AED"></button>
-            <button class="swatch" data-accent="#00D4FF" style="--sw:#00D4FF"></button>
+
+          <div class="info-section">
+            <h3>Accent</h3>
+            <div class="accent-grid">
+              <button class="swatch active" data-accent="#00FF88" style="--sw:#00FF88" type="button"></button>
+              <button class="swatch" data-accent="#FF2E63" style="--sw:#FF2E63" type="button"></button>
+              <button class="swatch" data-accent="#D4A017" style="--sw:#D4A017" type="button"></button>
+              <button class="swatch" data-accent="#00D4FF" style="--sw:#00D4FF" type="button"></button>
+            </div>
           </div>
-          <h3>Modes</h3>
-          <ul class="mode-list">
-            <li>Calls: WebRTC P2P</li>
-            <li>Files: Encrypted up to 2GB</li>
-            <li>Backup: Air-gapped export</li>
-          </ul>
+
+          <div class="info-section">
+            <h3>Quick Contacts</h3>
+            <div id="contactQuickList"></div>
+          </div>
+
+          <div class="info-section">
+            <h3>Capabilities</h3>
+            <ul class="info-mode-list">
+              <li>Calls: WebRTC P2P</li>
+              <li>Files: Encrypted up to 2 GB</li>
+              <li>Backup: Air-gapped export</li>
+            </ul>
+          </div>
         </aside>
-      </section>
-    </main>
+      </div>
+    </div>
+
+    <!-- ═══ NEW CHAT MODAL ═══ -->
+    <div class="new-chat-modal" id="newChatModal">
+      <div class="modal-card">
+        <h2>New Secure Thread</h2>
+        <p class="modal-subtitle">Create an encrypted channel with a peer</p>
+        <input class="modal-input" id="newPeerId" type="text" placeholder="Peer ID (e.g. peer-raven)" />
+        <input class="modal-input" id="newPeerName" type="text" placeholder="Display name (optional)" />
+        <div class="modal-actions">
+          <button class="btn-cancel" id="newChatCancel" type="button">Cancel</button>
+          <button class="btn-create" id="createChatBtn" type="button">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CALL OVERLAY ═══ -->
+    <div class="call-overlay" id="callOverlay">
+      <div class="call-avatar" id="callAvatar">A</div>
+      <div class="call-peer" id="callPeer">Astra</div>
+      <div class="call-status" id="callStatus">Encrypted channel ready</div>
+      <div class="call-quality" id="callQuality">Direct P2P • 44ms • bars 5/5</div>
+      <div class="call-controls">
+        <button class="call-btn" id="callVoice" type="button"><span class="call-icon">🎤</span>Voice</button>
+        <button class="call-btn" id="callVideo" type="button"><span class="call-icon">📹</span>Video</button>
+        <button class="call-btn" id="callMute" type="button"><span class="call-icon">🔇</span>Mute</button>
+        <button class="call-btn" id="callCamera" type="button"><span class="call-icon">📷</span>Cam</button>
+        <button class="call-btn" id="callSpeaker" type="button"><span class="call-icon">🔊</span>Spkr</button>
+        <button class="call-btn" id="callRoute" type="button"><span class="call-icon">🔀</span>Route</button>
+        <button class="call-btn danger" id="callEnd" type="button"><span class="call-icon">✕</span>End</button>
+      </div>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>

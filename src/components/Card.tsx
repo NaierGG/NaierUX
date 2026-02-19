@@ -14,10 +14,10 @@ export function Card({ children, accent }: CardProps) {
         styles.card,
         accent
           ? {
-              borderColor: accent,
-              shadowColor: glow(accent),
-              shadowOpacity: 0.45,
-            }
+            borderColor: glow(accent, 0.25),
+            shadowColor: accent,
+            shadowOpacity: 0.2,
+          }
           : null,
       ]}
     >
@@ -29,12 +29,12 @@ export function Card({ children, accent }: CardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
-    padding: 12,
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    padding: 16,
+    shadowOpacity: 0,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 0 },
   },
 });

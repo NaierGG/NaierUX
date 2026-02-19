@@ -1,4 +1,4 @@
-import type { EncryptedPacket, RouteMode } from "./types";
+import type { EncryptedPacket, KeyAgreementDescriptor, RouteMode } from "./types";
 import { isLegacyCryptoAllowed } from "./securityConfig";
 
 const STRONG_SCHEME = "AES-256-GCM/HKDF-SHA256/HMAC-SHA256";
@@ -25,8 +25,39 @@ export interface CryptoCapability {
   blockingReason?: string;
 }
 
+export interface LocalKeyAgreement {
+  curve: "P-256";
+  keyId: string;
+  publicKeyHex: string;
+  privateKey: any | null;
+}
+
+const MIN_MESSAGE_KEY_LENGTH = 16;
+let cachedMessageKey: Uint8Array | null = null;
+
+function readEnv(name: string): string | undefined {
+  try {
+    const envObj = (globalThis as any)?.process?.env;
+    const direct = envObj?.[name];
+    if (typeof direct === "string" && direct.length > 0) {
+      return direct;
+    }
+    const expoPublic = envObj?.[`EXPO_PUBLIC_${name}`];
+    if (typeof expoPublic === "string" && expoPublic.length > 0) {
+      return expoPublic;
+    }
+  } catch {
+    // Ignore process/env read failures.
+  }
+  return undefined;
+}
+
 function getCryptoObject(): any {
   return (globalThis as any).crypto;
+}
+
+function getSubtleCrypto(): any {
+  return getCryptoObject()?.subtle;
 }
 
 function subtleAvailable(): boolean {
@@ -44,6 +75,28 @@ function ensureCryptoRuntime(requireStrong = true): void {
   throw new Error(
     "Strong crypto runtime unavailable. Web Crypto SubtleCrypto is required by strict policy.",
   );
+}
+
+function resolveMessageKey(): string {
+  const raw = readEnv("NAIER_MESSAGE_KEY") ?? readEnv("NAIER_SIGNALING_TOKEN");
+  const normalized = raw?.trim();
+  if (!normalized) {
+    throw new Error(
+      "Missing NAIER_MESSAGE_KEY (or NAIER_SIGNALING_TOKEN fallback). Set a shared secret on all peers.",
+    );
+  }
+  if (normalized.length < MIN_MESSAGE_KEY_LENGTH) {
+    throw new Error(`NAIER_MESSAGE_KEY is too short. Use at least ${MIN_MESSAGE_KEY_LENGTH} characters.`);
+  }
+  return normalized;
+}
+
+function getMessageKeyBytes(): Uint8Array {
+  if (cachedMessageKey) {
+    return cachedMessageKey;
+  }
+  cachedMessageKey = utf8Encode(resolveMessageKey());
+  return cachedMessageKey;
 }
 
 function utf8Encode(value: string): Uint8Array {
@@ -116,6 +169,84 @@ function randomBytes(length: number): Uint8Array {
   return out;
 }
 
+function compactKeyId(input: string): string {
+  const cleaned = input.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const suffix = cleaned.slice(0, 12) || toHex(randomBytes(4));
+  return `ka-${suffix}`;
+}
+
+function isHex(input: string): boolean {
+  return /^[0-9a-f]+$/i.test(input);
+}
+
+function normalizePublicKeyHex(input: string): string {
+  const normalized = input.trim().toLowerCase();
+  if (!normalized || normalized.length % 2 !== 0 || !isHex(normalized)) {
+    throw new Error("Invalid key agreement public key format.");
+  }
+  return normalized;
+}
+
+export async function createLocalKeyAgreement(identityFingerprint: string): Promise<LocalKeyAgreement> {
+  const subtle = getSubtleCrypto();
+  if (!subtle) {
+    if (isLegacyCryptoAllowed()) {
+      return {
+        curve: "P-256",
+        keyId: compactKeyId(identityFingerprint),
+        publicKeyHex: "",
+        privateKey: null,
+      };
+    }
+    throw new Error("ECDH key agreement requires Web Crypto SubtleCrypto.");
+  }
+
+  const pair = await subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    ["deriveBits"],
+  );
+  const raw = await subtle.exportKey("raw", pair.publicKey);
+  return {
+    curve: "P-256",
+    keyId: compactKeyId(identityFingerprint),
+    publicKeyHex: toHex(new Uint8Array(raw)),
+    privateKey: pair.privateKey,
+  };
+}
+
+export async function deriveAgreementSecretHex(
+  localAgreement: LocalKeyAgreement,
+  remoteDescriptor: KeyAgreementDescriptor,
+): Promise<string | null> {
+  if (!localAgreement.privateKey) {
+    return null;
+  }
+  if (remoteDescriptor.curve !== "P-256") {
+    return null;
+  }
+
+  const subtle = getSubtleCrypto();
+  if (!subtle) {
+    return null;
+  }
+
+  const remotePublicKeyHex = normalizePublicKeyHex(remoteDescriptor.publicKeyHex);
+  const imported = await subtle.importKey(
+    "raw",
+    fromHex(remotePublicKeyHex),
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    [],
+  );
+  const bits = await subtle.deriveBits(
+    { name: "ECDH", public: imported },
+    localAgreement.privateKey,
+    256,
+  );
+  return toHex(new Uint8Array(bits));
+}
+
 function legacyDigest(bytes: Uint8Array): Uint8Array {
   let h1 = 0x811c9dc5;
   let h2 = 0x01000193;
@@ -162,11 +293,13 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return mismatch === 0;
 }
 
-async function deriveMaterial(session: SessionState, epoch: number) {
-  const seed = utf8Encode(
-    `naier/v1|${session.sessionId}|${session.peerFingerprint}|epoch:${epoch}`,
-  );
-  const root = await sha256(seed);
+async function deriveMaterial(session: SessionState, epoch: number, agreementSecretHex?: string) {
+  const seed = utf8Encode(`naier/v1|${session.sessionId}|${session.peerFingerprint}|epoch:${epoch}`);
+  const agreementSecret =
+    agreementSecretHex && agreementSecretHex.trim().length > 0
+      ? fromHex(agreementSecretHex)
+      : utf8Encode("psk-only");
+  const root = await hmacSign(getMessageKeyBytes(), concatBytes(seed, utf8Encode("|"), agreementSecret));
   const encSeed = await sha256(concatBytes(root, utf8Encode("enc")));
   const macSeed = await sha256(concatBytes(root, utf8Encode("mac")));
   return {
@@ -265,16 +398,33 @@ async function aesGcmDecrypt(
 
 export function getCryptoCapability(): CryptoCapability {
   const allowLegacy = isLegacyCryptoAllowed();
+  let messageKeyError: string | undefined;
+  try {
+    void getMessageKeyBytes();
+  } catch (error) {
+    messageKeyError = error instanceof Error ? error.message : "Message key configuration is invalid.";
+  }
+
   if (subtleAvailable()) {
-    return { strongCryptoAvailable: true, scheme: STRONG_SCHEME };
+    return {
+      strongCryptoAvailable: true,
+      scheme: STRONG_SCHEME,
+      ...(messageKeyError ? { blockingReason: messageKeyError } : {}),
+    };
   }
   if (allowLegacy) {
-    return { strongCryptoAvailable: false, scheme: LEGACY_SCHEME };
+    return {
+      strongCryptoAvailable: false,
+      scheme: LEGACY_SCHEME,
+      ...(messageKeyError ? { blockingReason: messageKeyError } : {}),
+    };
   }
   return {
     strongCryptoAvailable: false,
     scheme: STRONG_SCHEME,
-    blockingReason: "Strong crypto runtime unavailable and legacy compatibility mode is disabled.",
+    blockingReason:
+      messageKeyError ??
+      "Strong crypto runtime unavailable and legacy compatibility mode is disabled.",
   };
 }
 
@@ -290,6 +440,7 @@ export function createPreKeyBundle(identityKeyId: string): SessionKeyBundle {
 
 export function establishSession(peerFingerprint: string): SessionState {
   ensureCryptoRuntime(false);
+  void getMessageKeyBytes();
   const capability = getCryptoCapability();
   return {
     sessionId: `sess-${toHex(randomBytes(4))}`,
@@ -304,9 +455,10 @@ export async function encryptForTransport(
   plaintext: string,
   session: SessionState,
   route: RouteMode,
+  agreementSecretHex?: string,
 ): Promise<EncryptedPacket> {
   ensureCryptoRuntime(false);
-  const material = await deriveMaterial(session, session.ratchetEpoch);
+  const material = await deriveMaterial(session, session.ratchetEpoch, agreementSecretHex);
   const iv = randomBytes(12);
   const aadText = `naier:aad|${session.sessionId}|${session.ratchetEpoch}|${route}`;
   const aad = utf8Encode(aadText);
@@ -332,9 +484,10 @@ export async function encryptForTransport(
 export async function decryptFromTransport(
   packet: EncryptedPacket,
   session: SessionState,
+  agreementSecretHex?: string,
 ): Promise<string> {
   ensureCryptoRuntime(false);
-  const material = await deriveMaterial(session, packet.ratchetEpoch);
+  const material = await deriveMaterial(session, packet.ratchetEpoch, agreementSecretHex);
   const iv = fromHex(packet.iv);
   const aad = utf8Encode(packet.aad);
   const ciphertext = fromHex(packet.ciphertext);
@@ -352,5 +505,16 @@ export function advanceRatchet(session: SessionState): SessionState {
   return {
     ...session,
     ratchetEpoch: session.ratchetEpoch + 1,
+  };
+}
+
+export function toKeyAgreementDescriptor(localAgreement: LocalKeyAgreement): KeyAgreementDescriptor | null {
+  if (!localAgreement.publicKeyHex) {
+    return null;
+  }
+  return {
+    curve: localAgreement.curve,
+    keyId: localAgreement.keyId,
+    publicKeyHex: localAgreement.publicKeyHex,
   };
 }

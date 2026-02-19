@@ -17,11 +17,10 @@ export function AppHeader({
   rightActionLabel,
   onRightAction,
 }: AppHeaderProps) {
-  const titleVariantStyle = titleSize <= 20 ? styles.headerTitleSm : titleSize <= 22 ? styles.headerTitleMd : styles.headerTitleLg;
   return (
     <View style={styles.headerRow}>
       <View style={styles.headerMeta}>
-        <Text style={[styles.headerTitle, titleVariantStyle]}>{title}</Text>
+        <Text style={[styles.headerTitle, { fontSize: titleSize }]}>{title}</Text>
         {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
       </View>
       {rightActionLabel ? (
@@ -39,6 +38,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
+    paddingVertical: 4,
   },
   headerMeta: {
     flex: 1,
@@ -48,31 +48,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.3,
   },
-  headerTitleLg: {
-    fontSize: 26,
-  },
-  headerTitleMd: {
-    fontSize: 22,
-  },
-  headerTitleSm: {
-    fontSize: 20,
-  },
   headerSubtitle: {
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 3,
     letterSpacing: -0.1,
   },
   actionButton: {
     borderWidth: 1,
-    borderColor: COLORS.accentCyber,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: "#0F0F0F",
+    borderColor: COLORS.glassBorderHover,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: COLORS.glass,
   },
   actionText: {
-    color: COLORS.accentCyber,
+    color: COLORS.accentMain,
     fontSize: 12,
     fontWeight: "600",
   },

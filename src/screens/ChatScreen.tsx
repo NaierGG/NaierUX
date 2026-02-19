@@ -1,178 +1,193 @@
-﻿import React from "react";
+import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CallState, ChatMessage, DisappearPolicy, RouteMode, RouteStatus } from "../core";
 import type { RootStackParamList } from "../navigation/types";
-import { COLORS, routeColor } from "../theme/tokens";
+import type { CallState, ChatMessage, DisappearPolicy, RouteMode, RouteStatus, TrustState } from "../core";
+import type { SecurityPreferences } from "../state/preferences";
+import { COLORS, glow, routeColor } from "../theme/tokens";
 import { AppHeader } from "../components/AppHeader";
-import { CallControls } from "../components/CallControls";
-import { Card } from "../components/Card";
-import { MessageBubble } from "../components/MessageBubble";
 import { RouteStrip } from "../components/RouteStrip";
+import { CallControls } from "../components/CallControls";
+import { MessageBubble } from "../components/MessageBubble";
+import { Pill } from "../components/Pill";
+import { chatIdFromPeerId } from "../state/peer";
 
 export type ChatScreenProps = NativeStackScreenProps<RootStackParamList, "Chat"> & {
   routeMode: RouteMode;
   routeStatus: RouteStatus;
-  onSetRoute: (route: RouteMode) => void;
-  disappearPolicy: DisappearPolicy;
-  onSetDisappearPolicy: (policy: DisappearPolicy) => void;
-  inFlightCount: number;
-  activeNetworkName: string;
-  initError: string | null;
-  messages: ChatMessage[];
-  draft: string;
-  onDraftChange: (draft: string) => void;
-  sending: boolean;
   accent: string;
-  onSendCurrentDraft: (chatId: string, peerId: string) => Promise<void>;
+  chatMessages: ChatMessage[];
   callState: CallState;
-  onStartSecureCall: (peerId: string, mode: "voice" | "video") => Promise<void>;
-  onEndSecureCall: () => Promise<void>;
+  onSetRoute: (route: RouteMode) => void;
+  onStartVoice: () => void;
+  onStartVideo: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
   onToggleSpeaker: () => void;
   onSwitchRoute: () => void;
+  onEndCall: () => void;
+  initError: string | null;
+  draft: string;
+  onDraftChange: (text: string) => void;
+  sending: boolean;
+  onSendCurrentDraft: (chatId: string, peerId: string) => Promise<void>;
+  onRetryMessage: (messageId: string) => void;
+  disappearPolicy: DisappearPolicy;
+  onSetDisappearPolicy: (policy: DisappearPolicy) => void;
+  securityPrefs: SecurityPreferences;
+  trustState: TrustState;
+  activePeerKeyPreview: string | null;
+  pendingPeerKeyPreview: string | null;
+  sendBlockedReason: string | null;
+  onMarkPeerVerified: () => void;
+  onApprovePeerKeyChange: () => void;
 };
 
-function chatIdFromPeer(peerId: string): string {
-  if (peerId === "peer-astra") return "chat-astra";
-  if (peerId === "peer-node11") return "chat-node11";
-  return "chat-ops";
-}
+const POLICIES: DisappearPolicy[] = ["5 min", "1 h", "24 h", "30 d"];
 
 export function ChatScreen({
-  navigation,
   route,
   routeMode,
   routeStatus,
-  onSetRoute,
-  disappearPolicy,
-  onSetDisappearPolicy,
-  inFlightCount,
-  activeNetworkName,
-  initError,
-  messages,
-  draft,
-  onDraftChange,
-  sending,
   accent,
-  onSendCurrentDraft,
+  chatMessages,
   callState,
-  onStartSecureCall,
-  onEndSecureCall,
+  onSetRoute,
+  onStartVoice,
+  onStartVideo,
   onToggleMute,
   onToggleCamera,
   onToggleSpeaker,
   onSwitchRoute,
+  onEndCall,
+  initError,
+  draft,
+  onDraftChange,
+  sending,
+  onSendCurrentDraft,
+  onRetryMessage,
+  disappearPolicy,
+  onSetDisappearPolicy,
+  securityPrefs,
+  trustState,
+  activePeerKeyPreview,
+  pendingPeerKeyPreview,
+  sendBlockedReason,
+  onMarkPeerVerified,
+  onApprovePeerKeyChange,
 }: ChatScreenProps) {
-  const chatId = chatIdFromPeer(route.params.peerId);
-  const chatMessages = messages.filter((message) => message.chatId === chatId);
+  const chatId = chatIdFromPeerId(route.params.peerId);
+  const rColor = routeColor(routeMode);
+  const effectiveError = sendBlockedReason ?? initError;
+  const trustLabel =
+    trustState === "verified" ? "Verified" : trustState === "changed_key" ? "Key Changed" : "Unverified";
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <AppHeader
         title={route.params.peerName}
-        titleSize={20}
-        subtitle={`${routeMode} | ${routeStatus.latencyMs}ms`}
+        subtitle={`${routeMode} - ${routeStatus.latencyMs}ms`}
         rightActionLabel="Call"
-        onRightAction={() => {
-          void onStartSecureCall(route.params.peerId, "voice");
-          navigation.navigate("Call", { peerId: route.params.peerId, mode: "voice" });
-        }}
+        onRightAction={onStartVoice}
+        titleSize={22}
       />
 
       <RouteStrip route={routeMode} routeStatus={routeStatus} onSelectRoute={onSetRoute} />
 
-      <View style={styles.trustRow}>
-        <Text style={styles.trustText}>Screenshot block: ON</Text>
-        <Text style={styles.trustText}>Anti-delete: ON</Text>
-        <Text style={styles.trustText}>Queue in-flight: {inFlightCount}</Text>
+      <View style={styles.securityBanner}>
+        <Text style={styles.securityText}>E2EE Active</Text>
+        <Text style={styles.securitySep}>|</Text>
+        <Text style={styles.securityText}>Trust: {trustLabel}</Text>
+        <Text style={styles.securitySep}>|</Text>
+        <Text style={styles.securityText}>
+          Screenshot: {securityPrefs.screenshotBlock ? "Blocked" : "Allowed"}
+        </Text>
+        <Text style={styles.securitySep}>|</Text>
+        <Text style={styles.securityText}>Anti-delete: {securityPrefs.antiDelete ? "ON" : "Off"}</Text>
       </View>
 
-      <Card accent={callState.phase === "idle" ? undefined : routeColor(callState.route)}>
-        <Text style={styles.callStatusTitle}>
-          {callState.phase === "idle" ? "idle  Encrypted channel ready" : `${callState.phase}  ${callState.mode}`}
-        </Text>
-        <Text style={styles.callStatusMeta}>
-          {callState.route} | {callState.latencyMs}ms | bars {callState.bars}/5
-        </Text>
-        <CallControls
-          callState={callState}
-          onStartVoice={() => void onStartSecureCall(route.params.peerId, "voice")}
-          onStartVideo={() => void onStartSecureCall(route.params.peerId, "video")}
-          onToggleMute={onToggleMute}
-          onToggleCamera={onToggleCamera}
-          onToggleSpeaker={onToggleSpeaker}
-          onSwitchRoute={onSwitchRoute}
-          onEndCall={() => void onEndSecureCall()}
-        />
-      </Card>
+      {activePeerKeyPreview ? <Text style={styles.keyText}>Key: {activePeerKeyPreview}</Text> : null}
 
-      <Card>
-        <Text style={styles.routeMeta}>Disappearing: {disappearPolicy}</Text>
-        <Text style={styles.routeMeta}>Adapter: {activeNetworkName}</Text>
-      </Card>
+      {trustState === "unverified" ? (
+        <Pressable style={[styles.verifyButton, { borderColor: accent }]} onPress={onMarkPeerVerified}>
+          <Text style={[styles.verifyButtonText, { color: accent }]}>Mark Key Verified</Text>
+        </Pressable>
+      ) : null}
 
-      {initError ? (
-        <Card accent={COLORS.accentAlert}>
-          <Text style={styles.warning}>Secure transport is blocked.</Text>
-          <Text style={styles.small}>{initError}</Text>
-        </Card>
+      {trustState === "changed_key" ? (
+        <View style={styles.warningCard}>
+          <Text style={styles.warningTitle}>Key change detected</Text>
+          <Text style={styles.warningBody}>Incoming key: {pendingPeerKeyPreview ?? "N/A"}</Text>
+          <Pressable style={[styles.verifyButton, { borderColor: COLORS.danger }]} onPress={onApprovePeerKeyChange}>
+            <Text style={[styles.verifyButtonText, { color: COLORS.danger }]}>Approve New Key</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {callState.phase !== "idle" ? (
+        <View style={[styles.callCard, { borderColor: glow(rColor, 0.3) }]}>
+          <Text style={[styles.callPhase, { color: rColor }]}>
+            {callState.phase === "connecting" ? "Connecting..." : `${callState.mode.toUpperCase()} active`}
+          </Text>
+          <CallControls
+            callState={callState}
+            onStartVoice={onStartVoice}
+            onStartVideo={onStartVideo}
+            onToggleMute={onToggleMute}
+            onToggleCamera={onToggleCamera}
+            onToggleSpeaker={onToggleSpeaker}
+            onSwitchRoute={onSwitchRoute}
+            onEndCall={onEndCall}
+          />
+        </View>
       ) : null}
 
       <View style={styles.messageList}>
-        {chatMessages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
-        ))}
+        {chatMessages.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>...</Text>
+            <Text style={styles.emptyText}>Start the encrypted conversation.</Text>
+          </View>
+        ) : (
+          chatMessages.map((message) => (
+            <MessageBubble key={message.id} message={message} accent={accent} onRetry={onRetryMessage} />
+          ))
+        )}
       </View>
 
       <View style={styles.policyRow}>
-        <Pressable
-          onPress={() => onSetDisappearPolicy("5 min")}
-          style={[styles.policyChip, disappearPolicy === "5 min" ? styles.policyChipActive : null]}
-        >
-          <Text style={[styles.policyText, disappearPolicy === "5 min" ? { color: accent } : null]}>5 min</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onSetDisappearPolicy("1 h")}
-          style={[styles.policyChip, disappearPolicy === "1 h" ? styles.policyChipActive : null]}
-        >
-          <Text style={[styles.policyText, disappearPolicy === "1 h" ? { color: accent } : null]}>1 h</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onSetDisappearPolicy("24 h")}
-          style={[styles.policyChip, disappearPolicy === "24 h" ? styles.policyChipActive : null]}
-        >
-          <Text style={[styles.policyText, disappearPolicy === "24 h" ? { color: accent } : null]}>24 h</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onSetDisappearPolicy("30 d")}
-          style={[styles.policyChip, disappearPolicy === "30 d" ? styles.policyChipActive : null]}
-        >
-          <Text style={[styles.policyText, disappearPolicy === "30 d" ? { color: accent } : null]}>30 d</Text>
-        </Pressable>
+        <Text style={styles.policyLabel}>Disappearing:</Text>
+        {POLICIES.map((policy) => (
+          <Pill
+            key={policy}
+            label={policy}
+            color={accent}
+            active={disappearPolicy === policy}
+            onPress={() => onSetDisappearPolicy(policy)}
+          />
+        ))}
       </View>
+
+      {effectiveError ? (
+        <View style={styles.errorBar}>
+          <Text style={styles.errorText}>{effectiveError}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.composer}>
         <TextInput
           value={draft}
           onChangeText={onDraftChange}
-          placeholder="Encrypted message"
-          placeholderTextColor={COLORS.textSecondary}
+          placeholder="Encrypted message..."
+          placeholderTextColor={COLORS.textMuted}
           style={styles.composerInput}
         />
         <Pressable
           onPress={() => void onSendCurrentDraft(chatId, route.params.peerId)}
-          disabled={Boolean(initError)}
-          style={[
-            styles.sendButton,
-            { borderColor: accent },
-            initError ? styles.sendButtonDisabled : null,
-          ]}
+          disabled={Boolean(effectiveError) || sending}
+          style={[styles.sendButton, { borderColor: accent }, (effectiveError || sending) ? styles.sendButtonDisabled : null]}
         >
-          <Text style={[styles.sendText, { color: accent }]}>
-            {initError ? "Blocked" : sending ? "..." : "Send"}
-          </Text>
+          <Text style={[styles.sendButtonText, { color: accent }]}>Send</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -182,98 +197,143 @@ export function ChatScreen({
 const styles = StyleSheet.create({
   content: {
     padding: 16,
-    paddingBottom: 28,
+    paddingBottom: 32,
     gap: 12,
   },
-  trustRow: {
+  securityBanner: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(0, 255, 136, 0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.03)",
+  },
+  securityText: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+  },
+  securitySep: {
+    color: "rgba(255, 255, 255, 0.1)",
+    fontSize: 11,
+  },
+  keyText: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontFamily: "monospace",
+  },
+  verifyButton: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 255, 136, 0.05)",
+  },
+  verifyButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  warningCard: {
+    borderWidth: 1,
+    borderColor: "rgba(255, 75, 110, 0.4)",
+    backgroundColor: "rgba(255, 75, 110, 0.08)",
+    borderRadius: 10,
+    padding: 10,
     gap: 8,
   },
-  trustText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-  },
-  callStatusTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  callStatusMeta: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  routeMeta: {
-    color: COLORS.textSecondary,
-    marginTop: 2,
-    fontSize: 12,
-  },
-  warning: {
+  warningTitle: {
     color: COLORS.danger,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 6,
-  },
-  small: {
-    color: COLORS.textSecondary,
     fontSize: 12,
-    lineHeight: 18,
+    fontWeight: "700",
+  },
+  warningBody: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: "monospace",
+  },
+  callCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    backgroundColor: COLORS.glass,
+  },
+  callPhase: {
+    fontWeight: "700",
+    fontSize: 13,
+    marginBottom: 10,
   },
   messageList: {
     gap: 8,
+    minHeight: 120,
+  },
+  empty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyIcon: {
+    fontSize: 20,
+    opacity: 0.4,
+  },
+  emptyText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
   },
   policyRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "center",
     gap: 8,
   },
-  policyChip: {
-    borderRadius: 999,
+  policyLabel: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+  },
+  errorBar: {
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 46, 99, 0.08)",
     borderWidth: 1,
-    borderColor: "#2A2A2A",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "#131313",
+    borderColor: "rgba(255, 46, 99, 0.2)",
   },
-  policyChipActive: {
-    borderColor: COLORS.accentCyber,
-  },
-  policyText: {
-    color: COLORS.textSecondary,
+  errorText: {
+    color: COLORS.danger,
     fontSize: 12,
-    fontWeight: "500",
   },
   composer: {
     flexDirection: "row",
-    gap: 8,
     alignItems: "center",
+    gap: 10,
   },
   composerInput: {
     flex: 1,
-    height: 52,
-    borderRadius: 8,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 1,
-    borderColor: "#272727",
-    backgroundColor: COLORS.card,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.inputBg,
     color: COLORS.textPrimary,
-    paddingHorizontal: 12,
+    paddingHorizontal: 20,
+    fontSize: 14,
   },
   sendButton: {
-    height: 52,
-    borderRadius: 8,
+    height: 50,
+    minWidth: 68,
+    borderRadius: 25,
     borderWidth: 1,
-    minWidth: 80,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111111",
+    backgroundColor: "rgba(0, 255, 136, 0.08)",
+    paddingHorizontal: 14,
   },
   sendButtonDisabled: {
     opacity: 0.45,
   },
-  sendText: {
-    fontSize: 13,
+  sendButtonText: {
+    fontSize: 12,
     fontWeight: "700",
   },
 });

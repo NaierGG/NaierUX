@@ -25,19 +25,18 @@ export function RecoveryScreen({
         subtitle={`${recoveryWords.length}-word seed | ${phraseValid ? "valid" : "invalid"}`}
       />
       <Card>
-        <Text style={styles.warning}>Never screenshot or cloud-sync your phrase.</Text>
+        <Text style={styles.warning}>🔒 Never screenshot or cloud-sync your phrase.</Text>
         <View style={styles.chipGrid}>
           {recoveryWords.map((word, idx) => (
             <View key={`${word}-${idx}`} style={styles.wordChip}>
-              <Text style={styles.wordChipText}>
-                {idx + 1}. {word}
-              </Text>
+              <Text style={styles.wordIndex}>{idx + 1}</Text>
+              <Text style={styles.wordChipText}>{word}</Text>
             </View>
           ))}
         </View>
       </Card>
       <Card accent={accent}>
-        <Text style={styles.body}>Verification challenge: confirm words #3, #7, #11.</Text>
+        <Text style={styles.body}>Verification: confirm words #3, #7, #11 to proceed.</Text>
       </Card>
       <Pressable
         onPress={() => navigation.navigate("Home")}
@@ -51,31 +50,31 @@ export function RecoveryScreen({
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
-    paddingBottom: 28,
-    gap: 12,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 14,
   },
   body: {
     color: COLORS.textPrimary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   warning: {
     color: COLORS.danger,
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   primaryButton: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111111",
+    backgroundColor: "rgba(0, 255, 136, 0.06)",
   },
   primaryButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   chipGrid: {
@@ -84,17 +83,26 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   wordChip: {
-    width: "31%",
-    minHeight: 40,
-    borderRadius: 8,
-    backgroundColor: COLORS.peerBubble,
+    width: "30%",
+    minHeight: 42,
+    borderRadius: 10,
+    backgroundColor: COLORS.bgElevated,
     justifyContent: "center",
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#222222",
+    borderColor: COLORS.glassBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  wordIndex: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
   },
   wordChipText: {
     color: COLORS.textSecondary,
-    fontSize: 12,
+    fontSize: 13,
   },
 });

@@ -1,7 +1,7 @@
 ﻿import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { RouteMode } from "../core";
-import { COLORS, glow, routeColor } from "../theme/tokens";
+import { COLORS, glow, routeColor, routeDimColor } from "../theme/tokens";
 import { Avatar } from "./Avatar";
 import { Badge } from "./Badge";
 
@@ -32,7 +32,8 @@ export function ChatRow({
   active = false,
   onPress,
 }: ChatRowProps) {
-  const routeBadgeColor = routeColor(route);
+  const rColor = routeColor(route);
+  const rDim = routeDimColor(route);
 
   return (
     <Pressable
@@ -41,14 +42,13 @@ export function ChatRow({
         styles.row,
         active
           ? {
-              borderColor: accent,
-              shadowColor: glow(accent),
-              shadowOpacity: 0.45,
-            }
+            borderColor: COLORS.glassBorderHover,
+            backgroundColor: COLORS.glassHover,
+          }
           : null,
       ]}
     >
-      <Avatar label={name} size={44} borderColor={COLORS.accentCyber} />
+      <Avatar label={name} size={44} borderColor={COLORS.glassBorderHover} online={unread > 0} />
       <View style={styles.meta}>
         <Text style={styles.name}>{name}</Text>
         <Text numberOfLines={1} style={styles.preview}>
@@ -56,8 +56,8 @@ export function ChatRow({
         </Text>
       </View>
       <View style={styles.right}>
-        <View style={[styles.routeBadge, { borderColor: routeBadgeColor }]}>
-          <Text style={[styles.routeBadgeText, { color: routeBadgeColor }]}>{routeBadgeLabel(route)}</Text>
+        <View style={[styles.routeBadge, { borderColor: glow(rColor, 0.3), backgroundColor: rDim }]}>
+          <Text style={[styles.routeBadgeText, { color: rColor }]}>{routeBadgeLabel(route)}</Text>
         </View>
         <Text style={styles.time}>{timeLabel}</Text>
         {unread > 0 ? <Badge label={unread} backgroundColor={accent} /> : null}
@@ -69,17 +69,14 @@ export function ChatRow({
 const styles = StyleSheet.create({
   row: {
     minHeight: 72,
-    borderRadius: 12,
-    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: "transparent",
     flexDirection: "row",
     alignItems: "center",
-    padding: 10,
-    gap: 10,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
+    padding: 12,
+    gap: 12,
   },
   meta: {
     flex: 1,
@@ -89,11 +86,12 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 15,
     fontWeight: "600",
-    marginBottom: 2,
+    marginBottom: 3,
   },
   preview: {
     color: COLORS.textSecondary,
     fontSize: 12,
+    lineHeight: 16,
   },
   right: {
     alignItems: "flex-end",
@@ -103,16 +101,16 @@ const styles = StyleSheet.create({
   routeBadge: {
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
   },
   routeBadgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.5,
   },
   time: {
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontSize: 11,
   },
 });

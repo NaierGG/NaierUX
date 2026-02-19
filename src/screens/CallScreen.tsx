@@ -1,73 +1,98 @@
 ﻿import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import type { CallState } from "../core";
 import type { RootStackParamList } from "../navigation/types";
-import { COLORS, routeColor } from "../theme/tokens";
+import type { CallState, RouteMode, RouteStatus } from "../core";
+import { COLORS, glow, routeColor } from "../theme/tokens";
 import { AppHeader } from "../components/AppHeader";
+import { Avatar } from "../components/Avatar";
 import { CallControls } from "../components/CallControls";
-import { Card } from "../components/Card";
 
 export type CallScreenProps = NativeStackScreenProps<RootStackParamList, "Call"> & {
+  routeMode: RouteMode;
+  routeStatus: RouteStatus;
+  accent: string;
   callState: CallState;
-  onStartSecureCall: (peerId: string, mode: "voice" | "video") => Promise<void>;
-  onEndSecureCall: () => Promise<void>;
+  onStartVoice: () => void;
+  onStartVideo: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
   onToggleSpeaker: () => void;
   onSwitchRoute: () => void;
+  onEndCall: () => void;
 };
 
-function formatDuration(durationSec: number): string {
-  const minutes = Math.floor(durationSec / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = (durationSec % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
+function formatDuration(sec: number): string {
+  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
 }
 
 export function CallScreen({
   route,
+  routeMode,
+  routeStatus,
+  accent,
   callState,
-  onStartSecureCall,
-  onEndSecureCall,
+  onStartVoice,
+  onStartVideo,
   onToggleMute,
   onToggleCamera,
   onToggleSpeaker,
   onSwitchRoute,
+  onEndCall,
 }: CallScreenProps) {
+  const rColor = routeColor(callState.route);
+  const phaseLabel =
+    callState.phase === "idle"
+      ? "Ready"
+      : callState.phase === "connecting"
+        ? "Connecting..."
+        : `${callState.mode.toUpperCase()} • ${formatDuration(callState.durationSec)}`;
+
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Call" subtitle={`${route.params.peerId} | ${callState.route}`} titleSize={22} />
-      <Card accent={routeColor(callState.route)}>
-        <Text style={styles.largeLabel}>
-          {callState.phase === "connected" ? `${callState.mode.toUpperCase()} call active` : "Route Quality"}
-        </Text>
-        <Text style={styles.body}>
-          {callState.phase} | {callState.latencyMs}ms | bars {callState.bars}/5
-        </Text>
-        <Text style={styles.small}>
-          jitter {callState.jitterMs}ms | loss {callState.packetLossPct.toFixed(1)}% | duration{" "}
-          {formatDuration(callState.durationSec)}
-        </Text>
-        <Text style={styles.small}>
-          {callState.encrypted ? "Encrypted channel ready" : "Encryption inactive"}
-        </Text>
-      </Card>
-      <View style={styles.callStage}>
-        <Text style={styles.body}>
-          {callState.phase === "connected" ? `${callState.mode.toUpperCase()} stream` : "Call preview area"}
-        </Text>
+      {/* Caller */}
+      <View style={styles.callerSection}>
+        <Avatar label={route.params.peerId} size={80} borderColor={rColor} />
+        <Text style={styles.peerName}>{route.params.peerId}</Text>
+        <Text style={[styles.phaseLabel, { color: rColor }]}>{phaseLabel}</Text>
       </View>
+
+      {/* Quality */}
+      <View style={[styles.qualityCard, { borderColor: glow(rColor, 0.2) }]}>
+        <Text style={styles.qualityTitle}>Call Quality</Text>
+        <View style={styles.qualityRow}>
+          <View style={styles.qualityItem}>
+            <Text style={[styles.qualityValue, { color: rColor }]}>{callState.bars}/5</Text>
+            <Text style={styles.qualityLabel}>Bars</Text>
+          </View>
+          <View style={styles.qualityItem}>
+            <Text style={[styles.qualityValue, { color: rColor }]}>{callState.latencyMs}ms</Text>
+            <Text style={styles.qualityLabel}>Latency</Text>
+          </View>
+          <View style={styles.qualityItem}>
+            <Text style={styles.qualityValue}>{callState.jitterMs}ms</Text>
+            <Text style={styles.qualityLabel}>Jitter</Text>
+          </View>
+          <View style={styles.qualityItem}>
+            <Text style={styles.qualityValue}>{callState.packetLossPct.toFixed(1)}%</Text>
+            <Text style={styles.qualityLabel}>Loss</Text>
+          </View>
+        </View>
+        <Text style={styles.routeInfo}>Route: {callState.route} • Encrypted</Text>
+      </View>
+
+      {/* Controls */}
       <CallControls
         callState={callState}
-        onStartVoice={() => void onStartSecureCall(route.params.peerId, "voice")}
-        onStartVideo={() => void onStartSecureCall(route.params.peerId, "video")}
+        onStartVoice={onStartVoice}
+        onStartVideo={onStartVideo}
         onToggleMute={onToggleMute}
         onToggleCamera={onToggleCamera}
         onToggleSpeaker={onToggleSpeaker}
         onSwitchRoute={onSwitchRoute}
-        onEndCall={() => void onEndSecureCall()}
+        onEndCall={onEndCall}
       />
     </ScrollView>
   );
@@ -75,33 +100,64 @@ export function CallScreen({
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
-    paddingBottom: 28,
-    gap: 12,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 20,
+    alignItems: "center",
   },
-  largeLabel: {
+  callerSection: {
+    alignItems: "center",
+    paddingVertical: 20,
+    gap: 8,
+  },
+  peerName: {
+    color: COLORS.textPrimary,
+    fontSize: 22,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  phaseLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  qualityCard: {
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    backgroundColor: COLORS.glass,
+  },
+  qualityTitle: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  qualityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  qualityItem: {
+    alignItems: "center",
+    gap: 4,
+  },
+  qualityValue: {
     color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: "700",
-    marginBottom: 4,
   },
-  body: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    lineHeight: 20,
+  qualityLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  small: {
+  routeInfo: {
     color: COLORS.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  callStage: {
-    minHeight: 220,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#202020",
-    backgroundColor: "#090909",
-    alignItems: "center",
-    justifyContent: "center",
+    fontSize: 11,
+    marginTop: 12,
+    textAlign: "center",
   },
 });

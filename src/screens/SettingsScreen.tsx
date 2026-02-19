@@ -1,155 +1,165 @@
-﻿import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import React from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types";
-import { COLORS } from "../theme/tokens";
+import type { DisappearPolicy, RouteMode } from "../core";
+import type { SecurityPreferences } from "../state/preferences";
+import { COLORS, glow } from "../theme/tokens";
 import { AppHeader } from "../components/AppHeader";
 import { Card } from "../components/Card";
-
-type ToggleRowProps = {
-  icon: string;
-  label: string;
-  description: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-};
-
-export type DisappearSelection = "Off" | "5 minutes" | "1 hour" | "24 hours" | "7 days";
+import { Pill } from "../components/Pill";
 
 export type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, "Settings"> & {
-  disappearSelection: DisappearSelection;
-  onChangeDisappearSelection: (value: DisappearSelection) => void;
+  accent: string;
+  securityPrefs: SecurityPreferences;
+  onToggleBiometricLock: () => void;
+  onToggleScreenshotBlock: () => void;
+  onToggleAntiDelete: () => void;
+  routeMode: RouteMode;
+  onSetRoute: (route: RouteMode) => void;
+  disappearPolicy: DisappearPolicy;
+  onSetDisappearPolicy: (policy: DisappearPolicy) => void;
+  navigation: NativeStackScreenProps<RootStackParamList, "Settings">["navigation"];
 };
 
-function SectionTitle({ title }: { title: string }) {
-  return <Text style={styles.sectionTitle}>{title}</Text>;
-}
+type ToggleRowProps = {
+  label: string;
+  value: boolean;
+  onToggle: () => void;
+  accent: string;
+};
 
-function ToggleRow({ icon, label, description, value, onValueChange }: ToggleRowProps) {
+function ToggleRow({ label, value, onToggle, accent }: ToggleRowProps) {
   return (
-    <View style={styles.toggleRow}>
-      <Text style={styles.toggleIcon}>{icon}</Text>
-      <View style={styles.toggleMeta}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        <Text style={styles.toggleDescription}>{description}</Text>
+    <Pressable onPress={onToggle} style={styles.toggleRow}>
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <View
+        style={[
+          styles.toggleSwitch,
+          value
+            ? { backgroundColor: glow(accent, 0.15), borderColor: glow(accent, 0.4) }
+            : null,
+        ]}
+      >
+        <View
+          style={[
+            styles.toggleKnob,
+            value
+              ? { backgroundColor: accent, transform: [{ translateX: 14 }] }
+              : null,
+          ]}
+        />
       </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: "#303030", true: "#00FF88" }}
-        thumbColor={value ? "#0A0A0A" : "#888888"}
-      />
-    </View>
+    </Pressable>
   );
 }
 
-const DISAPPEAR_OPTIONS: DisappearSelection[] = ["Off", "5 minutes", "1 hour", "24 hours", "7 days"];
+const POLICIES: DisappearPolicy[] = ["5 min", "1 h", "24 h", "30 d"];
 
-export function SettingsScreen({ disappearSelection, onChangeDisappearSelection }: SettingsScreenProps) {
-  const [biometric, setBiometric] = useState(true);
-  const [screenshotBlock, setScreenshotBlock] = useState(true);
-  const [antiDelete, setAntiDelete] = useState(true);
-  const [torDefault, setTorDefault] = useState(false);
-  const [relayFallback, setRelayFallback] = useState(true);
-
-  const securityRows = useMemo(
-    () => [
-      {
-        icon: "L",
-        label: "Biometric lock",
-        description: "Unlock app with local biometric auth.",
-        value: biometric,
-        onValueChange: setBiometric,
-      },
-      {
-        icon: "S",
-        label: "Screenshot block",
-        description: "Block OS screenshots in protected screens.",
-        value: screenshotBlock,
-        onValueChange: setScreenshotBlock,
-      },
-      {
-        icon: "A",
-        label: "Anti-delete protection",
-        description: "Preserve message history integrity markers.",
-        value: antiDelete,
-        onValueChange: setAntiDelete,
-      },
-    ],
-    [antiDelete, biometric, screenshotBlock],
-  );
-
-  const networkRows = useMemo(
-    () => [
-      {
-        icon: "P",
-        label: "Prefer direct P2P",
-        description: "Use direct route whenever reachable.",
-        value: !torDefault,
-        onValueChange: (value: boolean) => setTorDefault(!value),
-      },
-      {
-        icon: "R",
-        label: "Relay fallback",
-        description: "Fail over to relay route when direct path fails.",
-        value: relayFallback,
-        onValueChange: setRelayFallback,
-      },
-    ],
-    [relayFallback, torDefault],
-  );
-
+export function SettingsScreen({
+  accent,
+  securityPrefs,
+  onToggleBiometricLock,
+  onToggleScreenshotBlock,
+  onToggleAntiDelete,
+  routeMode,
+  onSetRoute,
+  disappearPolicy,
+  onSetDisappearPolicy,
+  navigation,
+}: SettingsScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Settings" subtitle="Security and privacy first" />
+      <AppHeader title="Settings" subtitle="Privacy & security preferences" />
 
-      <SectionTitle title="SECURITY & PRIVACY" />
+      {/* Security */}
       <Card>
-        {securityRows.map((row) => (
-          <ToggleRow key={row.label} {...row} />
-        ))}
+        <Text style={styles.sectionLabel}>Security</Text>
+        <ToggleRow
+          label="🔐 Biometric Lock"
+          value={securityPrefs.biometricLock}
+          onToggle={onToggleBiometricLock}
+          accent={accent}
+        />
+        <ToggleRow
+          label="📵 Screenshot Block"
+          value={securityPrefs.screenshotBlock}
+          onToggle={onToggleScreenshotBlock}
+          accent={accent}
+        />
+        <ToggleRow
+          label="🛡 Anti-Delete Protection"
+          value={securityPrefs.antiDelete}
+          onToggle={onToggleAntiDelete}
+          accent={accent}
+        />
       </Card>
 
-      <SectionTitle title="NETWORK" />
+      {/* Network */}
       <Card>
-        {networkRows.map((row) => (
-          <ToggleRow key={row.label} {...row} />
-        ))}
+        <Text style={styles.sectionLabel}>Network</Text>
+        <View style={styles.pillRow}>
+          <Pill
+            label="Direct P2P"
+            color="#00FF88"
+            active={routeMode === "Direct P2P"}
+            onPress={() => onSetRoute("Direct P2P")}
+          />
+          <Pill
+            label="2-hop Relay"
+            color="#00D4FF"
+            active={routeMode === "2-hop Relay"}
+            onPress={() => onSetRoute("2-hop Relay")}
+          />
+          <Pill
+            label="Tor"
+            color="#FF4B6E"
+            active={routeMode === "Tor"}
+            onPress={() => onSetRoute("Tor")}
+          />
+        </View>
       </Card>
 
-      <SectionTitle title="DISAPPEARING MESSAGES" />
+      {/* Disappearing Messages */}
       <Card>
-        <View style={styles.radioList}>
-          {DISAPPEAR_OPTIONS.map((option) => (
-            <Pressable
-              key={option}
-              style={styles.radioRow}
-              onPress={() => onChangeDisappearSelection(option)}
-            >
-              <View style={styles.radioIconWrap}>
-                <View
-                  style={[
-                    styles.radioIcon,
-                    disappearSelection === option ? styles.radioIconActive : null,
-                  ]}
-                />
-              </View>
-              <Text style={styles.radioLabel}>{option}</Text>
-            </Pressable>
+        <Text style={styles.sectionLabel}>Disappearing Messages</Text>
+        <View style={styles.pillRow}>
+          {POLICIES.map((p) => (
+            <Pill
+              key={p}
+              label={p}
+              color={accent}
+              active={disappearPolicy === p}
+              onPress={() => onSetDisappearPolicy(p)}
+            />
           ))}
         </View>
       </Card>
 
-      <SectionTitle title="DATA" />
-      <Card>
-        <Text style={styles.dataText}>Local encrypted backup: Ready</Text>
-        <Text style={styles.dataText}>Device export: Air-gapped recommended</Text>
-        <Text style={styles.dataText}>Identity seed checksum: Verified</Text>
-      </Card>
-
-      <Pressable style={styles.deleteAction}>
-        <Text style={styles.deleteActionText}>Delete All Data & Identity</Text>
-      </Pressable>
+      {/* Navigation Links */}
+      <View style={styles.linkGroup}>
+        <Pressable
+          style={styles.linkButton}
+          onPress={() => navigation.navigate("Appearance")}
+        >
+          <Text style={styles.linkText}>🎨 Appearance</Text>
+          <Text style={styles.linkArrow}>→</Text>
+        </Pressable>
+        <Pressable
+          style={styles.linkButton}
+          onPress={() => navigation.navigate("Profile")}
+        >
+          <Text style={styles.linkText}>👤 Profile</Text>
+          <Text style={styles.linkArrow}>→</Text>
+        </Pressable>
+        <Pressable
+          style={styles.linkButton}
+          onPress={() => navigation.navigate("Backup")}
+        >
+          <Text style={styles.linkText}>💾 Backup & Export</Text>
+          <Text style={styles.linkArrow}>→</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -158,84 +168,68 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 32,
-    gap: 10,
+    gap: 14,
   },
-  sectionTitle: {
-    fontSize: 11,
+  sectionLabel: {
     color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 1.6,
-    marginTop: 2,
+    letterSpacing: 1,
+    marginBottom: 12,
   },
   toggleRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 8,
-  },
-  toggleIcon: {
-    color: COLORS.accentCyber,
-    fontSize: 14,
-    width: 18,
-    textAlign: "center",
-    fontWeight: "700",
-  },
-  toggleMeta: {
-    flex: 1,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.03)",
   },
   toggleLabel: {
     color: COLORS.textPrimary,
     fontSize: 14,
-    fontWeight: "600",
   },
-  toggleDescription: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
+  toggleSwitch: {
+    width: 40,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.bgElevated,
+    justifyContent: "center",
+    paddingHorizontal: 2,
   },
-  radioList: {
+  toggleKnob: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.textMuted,
+  },
+  pillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  radioRow: {
+  linkGroup: {
+    gap: 4,
+  },
+  linkButton: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 10,
-  },
-  radioIconWrap: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    padding: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#2C2C2C",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass,
   },
-  radioIcon: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  radioIconActive: {
-    backgroundColor: COLORS.accentMain,
-  },
-  radioLabel: {
+  linkText: {
     color: COLORS.textPrimary,
-    fontSize: 13,
+    fontSize: 14,
   },
-  dataText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  deleteAction: {
-    marginTop: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  deleteActionText: {
-    color: COLORS.danger,
-    fontSize: 13,
-    fontWeight: "600",
+  linkArrow: {
+    color: COLORS.textMuted,
+    fontSize: 16,
   },
 });
