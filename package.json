@@ -11,9 +11,13 @@
     "signal:server": "node server/signaling-server.js"
   },
   "dependencies": {
+    "@react-navigation/native": "latest",
+    "@react-navigation/native-stack": "latest",
     "expo": "latest",
     "react": "latest",
     "react-native": "latest",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
     "react-native-web": "latest"
   },
   "devDependencies": {

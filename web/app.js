@@ -1,7 +1,7 @@
 const state = {
   route: "Direct P2P",
   disappearPolicy: "5 min",
-  accent: "#00FF9D",
+  accent: "#00FF88",
   queueInFlight: 0,
   call: {
     phase: "idle",
@@ -23,6 +23,7 @@ const state = {
       name: "Astra",
       preview: "Route switched to direct P2P.",
       time: "09:32",
+      route: "Direct P2P",
       unread: 2,
       active: true,
     },
@@ -31,6 +32,7 @@ const state = {
       name: "Node-11",
       preview: "Fingerprint verified in person.",
       time: "08:55",
+      route: "2-hop Relay",
       unread: 0,
       active: false,
     },
@@ -39,6 +41,7 @@ const state = {
       name: "Ops Mesh",
       preview: "New disappearing policy: 24h",
       time: "Yesterday",
+      route: "Tor",
       unread: 6,
       active: false,
     },
@@ -99,6 +102,8 @@ function renderChats() {
   const chatList = document.getElementById("chatList");
   chatList.innerHTML = "";
   state.chats.forEach((chat) => {
+    const badgeColor = routeColor(chat.route);
+    const badgeLabel = chat.route === "Direct P2P" ? "P2P" : chat.route === "2-hop Relay" ? "RELAY" : "TOR";
     const row = document.createElement("button");
     row.className = `chat-item ${chat.active ? "active" : ""}`;
     row.type = "button";
@@ -109,6 +114,7 @@ function renderChats() {
         <p>${chat.preview}</p>
       </div>
       <div class="right">
+        <span class="route-badge" style="border-color:${badgeColor}; color:${badgeColor}">${badgeLabel}</span>
         <small>${chat.time}</small>
         ${chat.unread > 0 ? `<span class="badge">${chat.unread}</span>` : ""}
       </div>
