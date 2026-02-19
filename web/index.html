@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Naier Web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <main class="shell">
+      <header class="status-bar">
+        <span>9:41</span>
+        <span>|||| 87%</span>
+      </header>
+
+      <section class="hero">
+        <h1>Naier</h1>
+        <p>Talk without traces. Connect without masters.</p>
+      </section>
+
+      <section class="board">
+        <aside class="panel chats">
+          <div class="panel-head">
+            <h2>Chats</h2>
+            <button class="btn ghost">New</button>
+          </div>
+          <div class="route-strip" id="routeStrip">
+            <div class="route-top">
+              <strong id="routeLabel">Direct P2P</strong>
+              <span id="routeMeta">Low latency, peer direct</span>
+            </div>
+            <div class="route-controls">
+              <button class="pill active" data-route="Direct P2P">Direct P2P</button>
+              <button class="pill" data-route="2-hop Relay">2-hop Relay</button>
+              <button class="pill" data-route="Tor">Tor</button>
+            </div>
+          </div>
+
+          <div class="chat-list" id="chatList"></div>
+        </aside>
+
+        <section class="panel chat-room">
+          <div class="panel-head">
+            <div>
+              <h2 id="roomTitle">Astra</h2>
+              <p id="roomSub">Direct P2P | 48ms</p>
+            </div>
+            <button class="btn cyan" id="callQuickStart">Call</button>
+          </div>
+
+          <div class="trust-row">
+            <span>Screenshot block: ON</span>
+            <span>Anti-delete: ON</span>
+            <span id="queueState">Queue in-flight: 0</span>
+          </div>
+
+          <div class="call-strip" id="callStrip">
+            <strong id="callPhase">idle</strong>
+            <span id="callMeta">Encrypted channel ready</span>
+            <div class="call-actions">
+              <button class="pill" id="callVoice">Start Voice</button>
+              <button class="pill" id="callVideo">Start Video</button>
+              <button class="pill" id="callMute">Mute</button>
+              <button class="pill" id="callCamera">Camera</button>
+              <button class="pill" id="callSpeaker">Speaker</button>
+              <button class="pill" id="callRoute">Switch Route</button>
+              <button class="pill danger" id="callEnd">End</button>
+            </div>
+          </div>
+
+          <div class="message-list" id="messageList"></div>
+
+          <div class="policy-row">
+            <span>Disappearing</span>
+            <button class="pill active" data-policy="5 min">5 min</button>
+            <button class="pill" data-policy="1 h">1 h</button>
+            <button class="pill" data-policy="24 h">24 h</button>
+            <button class="pill" data-policy="30 d">30 d</button>
+          </div>
+
+          <form class="composer" id="composer">
+            <input id="draft" type="text" placeholder="Encrypted message" />
+            <button class="btn accent" type="submit">Send</button>
+          </form>
+        </section>
+
+        <aside class="panel side">
+          <h2>Identity</h2>
+          <p class="muted">Self-sovereign profile</p>
+          <div class="key-block">
+            <small>Fingerprint</small>
+            <strong id="fingerprint">8A4D:2C9F:77E1:43B0</strong>
+          </div>
+          <div class="key-block">
+            <small>Route policy</small>
+            <strong id="routePolicy">Direct P2P</strong>
+          </div>
+          <h3>Accent</h3>
+          <div class="accent-grid">
+            <button class="swatch active" data-accent="#00FF9D" style="--sw:#00FF9D"></button>
+            <button class="swatch" data-accent="#FF2E63" style="--sw:#FF2E63"></button>
+            <button class="swatch" data-accent="#7C3AED" style="--sw:#7C3AED"></button>
+            <button class="swatch" data-accent="#00D4FF" style="--sw:#00D4FF"></button>
+          </div>
+          <h3>Modes</h3>
+          <ul class="mode-list">
+            <li>Calls: WebRTC P2P</li>
+            <li>Files: Encrypted up to 2GB</li>
+            <li>Backup: Air-gapped export</li>
+          </ul>
+        </aside>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

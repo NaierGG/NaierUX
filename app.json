@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Naier",
+    "slug": "naier",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
