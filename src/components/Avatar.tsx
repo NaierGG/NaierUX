@@ -57,7 +57,11 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: COLORS.accentMain,
+    backgroundColor: COLORS.success,
     borderWidth: 2,
+    shadowColor: "#ffffff",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
 });

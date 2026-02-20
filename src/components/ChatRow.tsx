@@ -1,7 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { RouteMode } from "../core";
-import { COLORS, glow, routeColor, routeDimColor } from "../theme/tokens";
+import { COLORS } from "../theme/tokens";
 import { Avatar } from "./Avatar";
 import { Badge } from "./Badge";
 
@@ -10,31 +9,20 @@ type ChatRowProps = {
   preview: string;
   timeLabel: string;
   unread: number;
-  route: RouteMode;
-  accent: string;
+  online?: boolean;
   active?: boolean;
   onPress: () => void;
 };
-
-function routeBadgeLabel(route: RouteMode): string {
-  if (route === "Direct P2P") return "P2P";
-  if (route === "2-hop Relay") return "RELAY";
-  return "TOR";
-}
 
 export function ChatRow({
   name,
   preview,
   timeLabel,
   unread,
-  route,
-  accent,
+  online,
   active = false,
   onPress,
 }: ChatRowProps) {
-  const rColor = routeColor(route);
-  const rDim = routeDimColor(route);
-
   return (
     <Pressable
       onPress={onPress}
@@ -48,7 +36,7 @@ export function ChatRow({
           : null,
       ]}
     >
-      <Avatar label={name} size={44} borderColor={COLORS.glassBorderHover} online={unread > 0} />
+      <Avatar label={name} size={44} borderColor={COLORS.glassBorderHover} online={online ?? false} />
       <View style={styles.meta}>
         <Text style={styles.name}>{name}</Text>
         <Text numberOfLines={1} style={styles.preview}>
@@ -56,11 +44,8 @@ export function ChatRow({
         </Text>
       </View>
       <View style={styles.right}>
-        <View style={[styles.routeBadge, { borderColor: glow(rColor, 0.3), backgroundColor: rDim }]}>
-          <Text style={[styles.routeBadgeText, { color: rColor }]}>{routeBadgeLabel(route)}</Text>
-        </View>
         <Text style={styles.time}>{timeLabel}</Text>
-        {unread > 0 ? <Badge label={unread} backgroundColor={accent} /> : null}
+        {unread > 0 ? <Badge label={unread} backgroundColor={COLORS.accentMain} /> : null}
       </View>
     </Pressable>
   );
@@ -97,17 +82,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "flex-start",
     gap: 6,
-  },
-  routeBadge: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  routeBadgeText: {
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 0.5,
   },
   time: {
     color: COLORS.textMuted,

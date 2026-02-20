@@ -97,8 +97,6 @@ export function ChatScreen({
         titleSize={22}
       />
 
-      <RouteStrip route={routeMode} routeStatus={routeStatus} onSelectRoute={onSetRoute} />
-
       <View style={styles.securityBanner}>
         <Text style={styles.securityText}>E2EE Active</Text>
         <Text style={styles.securitySep}>|</Text>
@@ -175,19 +173,6 @@ export function ChatScreen({
         )}
       </View>
 
-      <View style={styles.policyRow}>
-        <Text style={styles.policyLabel}>Disappearing:</Text>
-        {POLICIES.map((policy) => (
-          <Pill
-            key={policy}
-            label={policy}
-            color={accent}
-            active={disappearPolicy === policy}
-            onPress={() => onSetDisappearPolicy(policy)}
-          />
-        ))}
-      </View>
-
       {effectiveError ? (
         <View style={styles.errorBar}>
           <Text style={styles.errorText}>{effectiveError}</Text>
@@ -209,6 +194,21 @@ export function ChatScreen({
         >
           <Text style={[styles.sendButtonText, { color: accent }]}>Send</Text>
         </Pressable>
+      </View>
+
+      <RouteStrip route={routeMode} routeStatus={routeStatus} onSelectRoute={onSetRoute} />
+
+      <View style={styles.policyRow}>
+        <Text style={styles.policyLabel}>Disappearing:</Text>
+        {POLICIES.map((policy) => (
+          <Pill
+            key={policy}
+            label={policy}
+            color={accent}
+            active={disappearPolicy === policy}
+            onPress={() => onSetDisappearPolicy(policy)}
+          />
+        ))}
       </View>
     </ScrollView>
   );

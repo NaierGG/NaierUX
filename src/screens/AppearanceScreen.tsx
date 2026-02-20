@@ -15,10 +15,14 @@ export type AppearanceScreenProps = NativeStackScreenProps<RootStackParamList, "
 
 const MODES: AccentMode[] = ["Neon Green", "Neon Red", "Highlight Purple", "Cyber Blue"];
 
-export function AppearanceScreen({ accentMode, onSetAccentMode, accent }: AppearanceScreenProps) {
+export function AppearanceScreen({ navigation, accentMode, onSetAccentMode, accent }: AppearanceScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Appearance" subtitle="Dark mode enabled (locked)" />
+      <AppHeader
+        title="Appearance"
+        subtitle="Dark mode enabled (locked)"
+        onBack={() => navigation.goBack()}
+      />
 
       <Card>
         <Text style={styles.sectionLabel}>Accent Color</Text>

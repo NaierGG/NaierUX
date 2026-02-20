@@ -31,7 +31,11 @@ export function RecoveryScreen({
     <ScrollView contentContainerStyle={styles.content}>
       <AppHeader
         title="Recovery Phrase"
-        subtitle={`${recoveryWords.length}-word seed | ${phraseValid ? "valid" : "invalid"}`}
+        subtitle={
+          phraseValid
+            ? `${recoveryWords.length}-word recovery phrase`
+            : `${recoveryWords.length}-word phrase - check words`
+        }
       />
 
       <Card>
@@ -40,6 +44,7 @@ export function RecoveryScreen({
           {recoveryWords.map((word, idx) => (
             <View key={`${word}-${idx}`} style={styles.wordChip}>
               <Text style={styles.wordIndex}>{idx + 1}</Text>
+              <Text style={{ color: COLORS.glassBorder, fontSize: 12 }}>|</Text>
               <Text style={styles.wordChipText}>{word}</Text>
             </View>
           ))}
@@ -118,7 +123,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   warning: {
-    color: COLORS.danger,
+    color: COLORS.warn,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
@@ -154,9 +159,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    justifyContent: "space-between",
   },
   wordChip: {
-    width: "30%",
+    width: "31%",
     minHeight: 42,
     borderRadius: 10,
     backgroundColor: COLORS.bgElevated,
@@ -171,8 +177,9 @@ const styles = StyleSheet.create({
   },
   wordIndex: {
     color: COLORS.textMuted,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
+    fontFamily: "monospace",
   },
   wordChipText: {
     color: COLORS.textSecondary,

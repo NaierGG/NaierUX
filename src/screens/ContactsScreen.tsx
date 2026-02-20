@@ -20,9 +20,9 @@ export type ContactsScreenProps = {
 };
 
 function trustLabel(trust: string): string {
-  if (trust === "verified") return "Verified";
-  if (trust === "changed_key") return "Key Changed";
-  return "Unverified";
+  if (trust === "verified") return "+ Verified";
+  if (trust === "changed_key") return "! Key Changed";
+  return "- Unverified";
 }
 
 function trustColor(trust: string): string {
@@ -92,7 +92,10 @@ export function ContactsScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Contacts" subtitle={`${contacts.length} peers connected`} />
+      <AppHeader
+        title="Contacts"
+        subtitle={contacts.length === 0 ? "No contacts yet" : `${contacts.length} saved contacts`}
+      />
 
       <TextInput
         value={search}
@@ -160,34 +163,42 @@ export function ContactsScreen({
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Contacts</Text>
-        <View style={styles.list}>
-          {filteredContacts.map((contact) => (
-            <View key={contact.peerId} style={styles.row}>
-              <Avatar label={contact.name} online={contact.online} borderColor={COLORS.glassBorderHover} />
-              <View style={styles.meta}>
-                <Text style={styles.name}>{contact.name}</Text>
-                <Text style={styles.peerId}>{contact.peerId}</Text>
-                <Text style={[styles.trust, { color: trustColor(contact.trust) }]}>
-                  {trustLabel(contact.trust)}
-                </Text>
+        {filteredContacts.length === 0 ? (
+          <View style={styles.emptyContacts}>
+            <Text style={styles.emptyContactsText}>
+              {search ? "No contacts match your search." : "No contacts yet. Add someone via New Chat."}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {filteredContacts.map((contact) => (
+              <View key={contact.peerId} style={styles.row}>
+                <Avatar label={contact.name} online={contact.online} borderColor={COLORS.glassBorderHover} />
+                <View style={styles.meta}>
+                  <Text style={styles.name}>{contact.name}</Text>
+                  <Text style={styles.peerId}>{contact.peerId}</Text>
+                  <Text style={[styles.trust, { color: trustColor(contact.trust) }]}>
+                    {trustLabel(contact.trust)}
+                  </Text>
+                </View>
+                <View style={styles.actions}>
+                  <Pressable
+                    style={[styles.chatButton, { borderColor: glow(accent, 0.4) }]}
+                    onPress={() => onStartChat(contact.peerId, contact.name, contact.trust)}
+                  >
+                    <Text style={[styles.chatButtonText, { color: accent }]}>Chat</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.chatButton, { borderColor: glow(COLORS.danger, 0.4) }]}
+                    onPress={() => onBlockPeer(contact.peerId)}
+                  >
+                    <Text style={[styles.chatButtonText, { color: COLORS.danger }]}>Block</Text>
+                  </Pressable>
+                </View>
               </View>
-              <View style={styles.actions}>
-                <Pressable
-                  style={[styles.chatButton, { borderColor: glow(accent, 0.4) }]}
-                  onPress={() => onStartChat(contact.peerId, contact.name, contact.trust)}
-                >
-                  <Text style={[styles.chatButtonText, { color: accent }]}>Chat</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.chatButton, { borderColor: glow(COLORS.danger, 0.4) }]}
-                  onPress={() => onBlockPeer(contact.peerId)}
-                >
-                  <Text style={[styles.chatButtonText, { color: COLORS.danger }]}>Block</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </View>
 
       {filteredBlockedPeers.length > 0 ? (
@@ -242,6 +253,15 @@ const styles = StyleSheet.create({
   list: {
     gap: 6,
   },
+  emptyContacts: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  emptyContactsText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -249,8 +269,8 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "transparent",
-    backgroundColor: "transparent",
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass,
   },
   requestRow: {
     flexDirection: "row",

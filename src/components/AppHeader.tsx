@@ -8,6 +8,7 @@ type AppHeaderProps = {
   titleSize?: number;
   rightActionLabel?: string;
   onRightAction?: () => void;
+  onBack?: () => void;
 };
 
 export function AppHeader({
@@ -16,12 +17,20 @@ export function AppHeader({
   titleSize = 26,
   rightActionLabel,
   onRightAction,
+  onBack,
 }: AppHeaderProps) {
   return (
     <View style={styles.headerRow}>
-      <View style={styles.headerMeta}>
-        <Text style={[styles.headerTitle, { fontSize: titleSize }]}>{title}</Text>
-        {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+      <View style={styles.headerLeft}>
+        {onBack ? (
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backText}>{"<"}</Text>
+          </Pressable>
+        ) : null}
+        <View style={styles.headerMeta}>
+          <Text style={[styles.headerTitle, { fontSize: titleSize }]}>{title}</Text>
+          {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+        </View>
       </View>
       {rightActionLabel ? (
         <Pressable onPress={onRightAction} style={styles.actionButton}>
@@ -40,8 +49,31 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 4,
   },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   headerMeta: {
     flex: 1,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    backgroundColor: COLORS.glass,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backText: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: -1,
   },
   headerTitle: {
     color: COLORS.textPrimary,

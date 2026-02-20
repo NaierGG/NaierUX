@@ -206,19 +206,84 @@ export function NewChatScreen({
         style={styles.searchInput}
       />
 
+      {filteredContacts.map((contact) => (
+        <View key={contact.peerId} style={styles.contactCard}>
+          <Avatar label={contact.name} online={contact.online} borderColor={COLORS.glassBorderHover} />
+          <View style={styles.contactMeta}>
+            <Text style={styles.contactName}>{contact.name}</Text>
+            <Text style={styles.contactPeer}>{contact.peerId}</Text>
+          </View>
+          <Pressable
+            style={[styles.startButton, { borderColor: glow(accent, 0.4), backgroundColor: glow(accent, 0.08) }]}
+            onPress={() => onStartChat(contact.peerId, contact.name, contact.trust)}
+          >
+            <Text style={[styles.startButtonText, { color: accent }]}>Start</Text>
+          </Pressable>
+        </View>
+      ))}
+
       <Card>
-        <Text style={styles.sectionLabel}>Add Contact</Text>
-        <Text style={styles.helperText}>Current method: Direct Peer ID (Profile {" > "} Network Peer ID).</Text>
-        <View style={styles.methodRow}>
-          <View style={[styles.methodChip, { borderColor: glow(accent, 0.3) }]}>
-            <Text style={[styles.methodText, { color: accent }]}>Direct ID (Live)</Text>
-          </View>
-          <View style={[styles.methodChip, { borderColor: glow(accent, 0.2) }]}>
-            <Text style={styles.methodText}>QR Invite (Live)</Text>
-          </View>
-          <View style={styles.methodChip}>
-            <Text style={styles.methodText}>NFC (Optional)</Text>
-          </View>
+        <Text style={styles.sectionLabel}>Direct Peer ID</Text>
+        <Text style={styles.helperText}>Paste the peer id your friend shared with you.</Text>
+        <TextInput
+          value={manualPeerId}
+          onChangeText={setManualPeerId}
+          placeholder="peer-custom-id"
+          placeholderTextColor={COLORS.textMuted}
+          style={styles.peerInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <TextInput
+          value={manualName}
+          onChangeText={setManualName}
+          placeholder="Display name (optional)"
+          placeholderTextColor={COLORS.textMuted}
+          style={styles.peerInput}
+        />
+        {existingRequest ? (
+          <Text style={styles.pendingText}>
+            Pending request: {existingRequest.direction === "incoming" ? "Incoming" : "Outgoing"}
+          </Text>
+        ) : null}
+        <View style={styles.buttonRow}>
+          <Pressable
+            disabled={!manualPeerId.trim()}
+            style={[
+              styles.manualButton,
+              { borderColor: glow(accent, 0.35), backgroundColor: glow(accent, 0.08) },
+              !manualPeerId.trim() ? styles.manualButtonDisabled : null,
+            ]}
+            onPress={() => {
+              const peerId = manualPeerId.trim();
+              if (!peerId) {
+                return;
+              }
+              const name = manualName.trim() || normalizePeerId(peerId);
+              onStartChat(peerId, name, "unverified");
+              setManualPeerId("");
+              setManualName("");
+            }}
+          >
+            <Text style={[styles.manualButtonText, { color: accent }]}>Start Secure Chat</Text>
+          </Pressable>
+          <Pressable
+            disabled={!manualPeerId.trim()}
+            style={[
+              styles.manualButton,
+              { borderColor: COLORS.glassBorder, backgroundColor: COLORS.bgElevated },
+              !manualPeerId.trim() ? styles.manualButtonDisabled : null,
+            ]}
+            onPress={() => {
+              const peerId = manualPeerId.trim();
+              if (!peerId) {
+                return;
+              }
+              onSendFriendRequest(peerId, manualName.trim() || undefined);
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Send Friend Request</Text>
+          </Pressable>
         </View>
       </Card>
 
@@ -306,84 +371,19 @@ export function NewChatScreen({
         {nfcStatus ? <Text style={styles.infoText}>{nfcStatus}</Text> : null}
       </Card>
 
-      {filteredContacts.map((contact) => (
-        <View key={contact.peerId} style={styles.contactCard}>
-          <Avatar label={contact.name} online={contact.online} borderColor={COLORS.glassBorderHover} />
-          <View style={styles.contactMeta}>
-            <Text style={styles.contactName}>{contact.name}</Text>
-            <Text style={styles.contactPeer}>{contact.peerId}</Text>
-          </View>
-          <Pressable
-            style={[styles.startButton, { borderColor: glow(accent, 0.4), backgroundColor: glow(accent, 0.08) }]}
-            onPress={() => onStartChat(contact.peerId, contact.name, contact.trust)}
-          >
-            <Text style={[styles.startButtonText, { color: accent }]}>Start</Text>
-          </Pressable>
-        </View>
-      ))}
-
       <Card>
-        <Text style={styles.sectionLabel}>Direct Peer ID</Text>
-        <Text style={styles.helperText}>Paste the peer id your friend shared with you.</Text>
-        <TextInput
-          value={manualPeerId}
-          onChangeText={setManualPeerId}
-          placeholder="peer-custom-id"
-          placeholderTextColor={COLORS.textMuted}
-          style={styles.peerInput}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TextInput
-          value={manualName}
-          onChangeText={setManualName}
-          placeholder="Display name (optional)"
-          placeholderTextColor={COLORS.textMuted}
-          style={styles.peerInput}
-        />
-        {existingRequest ? (
-          <Text style={styles.pendingText}>
-            Pending request: {existingRequest.direction === "incoming" ? "Incoming" : "Outgoing"}
-          </Text>
-        ) : null}
-        <View style={styles.buttonRow}>
-          <Pressable
-            disabled={!manualPeerId.trim()}
-            style={[
-              styles.manualButton,
-              { borderColor: glow(accent, 0.35), backgroundColor: glow(accent, 0.08) },
-              !manualPeerId.trim() ? styles.manualButtonDisabled : null,
-            ]}
-            onPress={() => {
-              const peerId = manualPeerId.trim();
-              if (!peerId) {
-                return;
-              }
-              const name = manualName.trim() || normalizePeerId(peerId);
-              onStartChat(peerId, name, "unverified");
-              setManualPeerId("");
-              setManualName("");
-            }}
-          >
-            <Text style={[styles.manualButtonText, { color: accent }]}>Start Secure Chat</Text>
-          </Pressable>
-          <Pressable
-            disabled={!manualPeerId.trim()}
-            style={[
-              styles.manualButton,
-              { borderColor: COLORS.glassBorder, backgroundColor: COLORS.bgElevated },
-              !manualPeerId.trim() ? styles.manualButtonDisabled : null,
-            ]}
-            onPress={() => {
-              const peerId = manualPeerId.trim();
-              if (!peerId) {
-                return;
-              }
-              onSendFriendRequest(peerId, manualName.trim() || undefined);
-            }}
-          >
-            <Text style={styles.secondaryButtonText}>Send Friend Request</Text>
-          </Pressable>
+        <Text style={styles.sectionLabel}>Add Contact</Text>
+        <Text style={styles.helperText}>Current method: Direct Peer ID (Profile {" > "} Network Peer ID).</Text>
+        <View style={styles.methodRow}>
+          <View style={[styles.methodChip, { borderColor: glow(accent, 0.3) }]}>
+            <Text style={[styles.methodText, { color: accent }]}>Direct ID (Live)</Text>
+          </View>
+          <View style={[styles.methodChip, { borderColor: glow(accent, 0.2) }]}>
+            <Text style={styles.methodText}>QR Invite (Live)</Text>
+          </View>
+          <View style={styles.methodChip}>
+            <Text style={styles.methodText}>NFC (Optional)</Text>
+          </View>
         </View>
       </Card>
     </ScrollView>

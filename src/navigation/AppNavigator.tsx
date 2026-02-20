@@ -120,6 +120,11 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
   } = useEngineContext();
 
   const routeStatus = useMemo(() => getRouteStatus(route), [route]);
+  const meshActive = identityReady && initError === null;
+  const cipherLabel =
+    cryptoCapability.scheme === "AES-256-GCM/HKDF-SHA256/HMAC-SHA256"
+      ? "AES-256-GCM"
+      : cryptoCapability.scheme;
   const showBottomNav = currentRouteName !== "Splash" && currentRouteName !== "Recovery";
   const activeBottomItem = useMemo(() => mapRouteToBottomItem(currentRouteName), [currentRouteName]);
 
@@ -331,7 +336,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
         <View style={styles.purpleGlow} />
       </View>
 
-      <StatusBar />
+      <StatusBar meshActive={meshActive} cipherLabel={cipherLabel} />
 
       <View style={styles.appShell}>
         <Stack.Navigator
@@ -360,6 +365,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
                 routeStatus={routeStatus}
                 chats={chats}
                 activeChatId={chats[0]?.id ?? ""}
+                onNewChat={() => navigationRef.navigate("NewChat")}
                 onSetRoute={setRoute}
                 onPressChat={(chatId: string) => {
                   const chat = chats.find((c) => c.id === chatId);

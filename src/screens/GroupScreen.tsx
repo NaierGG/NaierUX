@@ -13,7 +13,11 @@ export type GroupScreenProps = NativeStackScreenProps<RootStackParamList, "Group
 export function GroupScreen({ navigation, accent, route }: GroupScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Groups" subtitle={`Group ${route.params.groupId} | Secure routing`} />
+      <AppHeader
+        title="Groups"
+        subtitle={`Group ${route.params.groupId} | Secure routing`}
+        onBack={() => navigation.goBack()}
+      />
 
       <Card>
         <Text style={styles.sectionLabel}>Group Info</Text>

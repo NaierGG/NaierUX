@@ -12,7 +12,7 @@ export type BackupScreenProps = NativeStackScreenProps<RootStackParamList, "Back
   onImportBackup: (payload: string) => Promise<{ ok: boolean; error?: string }>;
 };
 
-export function BackupScreen({ accent, onExportBackup, onImportBackup }: BackupScreenProps) {
+export function BackupScreen({ navigation, accent, onExportBackup, onImportBackup }: BackupScreenProps) {
   const [backupPayload, setBackupPayload] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -20,7 +20,11 @@ export function BackupScreen({ accent, onExportBackup, onImportBackup }: BackupS
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Backup & Export" subtitle="Encrypted local backup payload" />
+      <AppHeader
+        title="Backup & Export"
+        subtitle="Encrypted local backup payload"
+        onBack={() => navigation.goBack()}
+      />
 
       <Card>
         <Text style={styles.sectionLabel}>Generate Backup</Text>

@@ -13,9 +13,15 @@ export type ProfileScreenProps = NativeStackScreenProps<RootStackParamList, "Pro
   peerId: string;
 };
 
-export function ProfileScreen({ accent, fingerprint, peerId }: ProfileScreenProps) {
+export function ProfileScreen({ navigation, accent, fingerprint, peerId }: ProfileScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.content}>
+      <AppHeader
+        title="Profile"
+        subtitle="Local identity details"
+        onBack={() => navigation.goBack()}
+      />
+
       <View style={styles.profileHeader}>
         <Avatar label="Me" size={80} borderColor={accent} />
         <Text style={styles.profileName}>Local Identity</Text>

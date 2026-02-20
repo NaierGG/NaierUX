@@ -15,6 +15,7 @@ export type HomeScreenProps = {
   activeChatId: string;
   onPressChat: (chatId: string) => void;
   onSetRoute: (route: RouteMode) => void;
+  onNewChat?: () => void;
 };
 
 export function HomeScreen({
@@ -25,6 +26,7 @@ export function HomeScreen({
   activeChatId,
   onPressChat,
   onSetRoute,
+  onNewChat,
 }: HomeScreenProps) {
   const [search, setSearch] = useState("");
 
@@ -43,7 +45,12 @@ export function HomeScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <AppHeader title="Chats" subtitle="Local-first inbox" />
+      <AppHeader
+        title="Chats"
+        subtitle="Local-first inbox"
+        rightActionLabel={onNewChat ? "New Chat" : undefined}
+        onRightAction={onNewChat}
+      />
 
       {/* Metrics */}
       <View style={styles.metricsRow}>
@@ -85,8 +92,7 @@ export function HomeScreen({
             preview={row.lastMessage}
             timeLabel={row.timeLabel}
             unread={row.unread}
-            route={routeMode}
-            accent={accent}
+            online={false}
             active={row.id === activeChatId}
             onPress={() => onPressChat(row.id)}
           />

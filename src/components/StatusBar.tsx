@@ -1,17 +1,29 @@
-﻿import React from "react";
+import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { COLORS } from "../theme/tokens";
 
-export function StatusBar() {
+type StatusBarProps = {
+  meshActive?: boolean;
+  cipherLabel?: string;
+};
+
+function nowLabel(): string {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export function StatusBar({ meshActive = false, cipherLabel }: StatusBarProps) {
+  const meshLabel = meshActive ? "Mesh Active" : "Offline";
+  const resolvedCipher = cipherLabel?.trim() ? cipherLabel : "Unknown";
+
   return (
     <View style={styles.statusBar}>
       <View style={styles.left}>
-        <View style={styles.meshDot} />
-        <Text style={styles.statusText}>Mesh Active</Text>
-        <Text style={styles.sep}>•</Text>
-        <Text style={styles.statusText}>9:41</Text>
+        <View style={[styles.meshDot, meshActive ? styles.meshDotOnline : styles.meshDotOffline]} />
+        <Text style={styles.statusText}>{meshLabel}</Text>
+        <Text style={styles.sep}>|</Text>
+        <Text style={styles.statusText}>{nowLabel()}</Text>
       </View>
-      <Text style={styles.statusText}>E2EE • AES-256-GCM</Text>
+      <Text style={styles.statusText}>E2EE | {resolvedCipher}</Text>
     </View>
   );
 }
@@ -36,7 +48,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.accentMain,
+  },
+  meshDotOnline: {
+    backgroundColor: COLORS.success,
+  },
+  meshDotOffline: {
+    backgroundColor: COLORS.danger,
   },
   statusText: {
     color: COLORS.textMuted,

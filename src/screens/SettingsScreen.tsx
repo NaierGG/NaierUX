@@ -19,7 +19,6 @@ export type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, "Se
   onSetRoute: (route: RouteMode) => void;
   disappearPolicy: DisappearPolicy;
   onSetDisappearPolicy: (policy: DisappearPolicy) => void;
-  navigation: NativeStackScreenProps<RootStackParamList, "Settings">["navigation"];
 };
 
 type ToggleRowProps = {
@@ -72,30 +71,6 @@ export function SettingsScreen({
     <ScrollView contentContainerStyle={styles.content}>
       <AppHeader title="Settings" subtitle="Privacy & security preferences" />
 
-      {/* Security */}
-      <Card>
-        <Text style={styles.sectionLabel}>Security</Text>
-        <ToggleRow
-          label="🔐 Biometric Lock"
-          value={securityPrefs.biometricLock}
-          onToggle={onToggleBiometricLock}
-          accent={accent}
-        />
-        <ToggleRow
-          label="📵 Screenshot Block"
-          value={securityPrefs.screenshotBlock}
-          onToggle={onToggleScreenshotBlock}
-          accent={accent}
-        />
-        <ToggleRow
-          label="🛡 Anti-Delete Protection"
-          value={securityPrefs.antiDelete}
-          onToggle={onToggleAntiDelete}
-          accent={accent}
-        />
-      </Card>
-
-      {/* Network */}
       <Card>
         <Text style={styles.sectionLabel}>Network</Text>
         <View style={styles.pillRow}>
@@ -118,9 +93,9 @@ export function SettingsScreen({
             onPress={() => onSetRoute("Tor")}
           />
         </View>
+        <Text style={styles.networkHint}>Direct P2P is fastest. Use Relay or Tor for more privacy.</Text>
       </Card>
 
-      {/* Disappearing Messages */}
       <Card>
         <Text style={styles.sectionLabel}>Disappearing Messages</Text>
         <View style={styles.pillRow}>
@@ -136,30 +111,54 @@ export function SettingsScreen({
         </View>
       </Card>
 
-      {/* Navigation Links */}
-      <View style={styles.linkGroup}>
-        <Pressable
-          style={styles.linkButton}
-          onPress={() => navigation.navigate("Appearance")}
-        >
-          <Text style={styles.linkText}>🎨 Appearance</Text>
-          <Text style={styles.linkArrow}>→</Text>
-        </Pressable>
-        <Pressable
-          style={styles.linkButton}
-          onPress={() => navigation.navigate("Profile")}
-        >
-          <Text style={styles.linkText}>👤 Profile</Text>
-          <Text style={styles.linkArrow}>→</Text>
-        </Pressable>
-        <Pressable
-          style={styles.linkButton}
-          onPress={() => navigation.navigate("Backup")}
-        >
-          <Text style={styles.linkText}>💾 Backup & Export</Text>
-          <Text style={styles.linkArrow}>→</Text>
-        </Pressable>
-      </View>
+      <Card>
+        <Text style={styles.sectionLabel}>Security</Text>
+        <ToggleRow
+          label="Biometric Lock"
+          value={securityPrefs.biometricLock}
+          onToggle={onToggleBiometricLock}
+          accent={accent}
+        />
+        <ToggleRow
+          label="Screenshot Block"
+          value={securityPrefs.screenshotBlock}
+          onToggle={onToggleScreenshotBlock}
+          accent={accent}
+        />
+        <ToggleRow
+          label="Anti-Delete Protection"
+          value={securityPrefs.antiDelete}
+          onToggle={onToggleAntiDelete}
+          accent={accent}
+        />
+      </Card>
+
+      <Card>
+        <Text style={styles.sectionLabel}>More</Text>
+        <View style={styles.linkGroup}>
+          <Pressable
+            style={styles.linkButton}
+            onPress={() => navigation.navigate("Appearance")}
+          >
+            <Text style={styles.linkText}>Appearance</Text>
+            <Text style={styles.linkArrow}>{">"}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.linkButton}
+            onPress={() => navigation.navigate("Profile")}
+          >
+            <Text style={styles.linkText}>Profile</Text>
+            <Text style={styles.linkArrow}>{">"}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.linkButton}
+            onPress={() => navigation.navigate("Backup")}
+          >
+            <Text style={styles.linkText}>Backup & Export</Text>
+            <Text style={styles.linkArrow}>{">"}</Text>
+          </Pressable>
+        </View>
+      </Card>
     </ScrollView>
   );
 }
@@ -210,6 +209,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  networkHint: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginTop: 8,
   },
   linkGroup: {
     gap: 4,
