@@ -11,6 +11,7 @@ Naier is a privacy-first decentralized messenger prototype.
 - Route-aware messaging (`Direct P2P`, `2-hop Relay`, `Tor`)
 - Encrypted app-state persistence (chats/contacts/messages/settings)
 - Friend request flow (outgoing/incoming, accept/decline, block/unblock)
+- Invite onboarding via QR payload (live) + optional Web NFC scan attempt
 - Encrypted backup payload export/import from the app
 - WebRTC messaging adapter with authenticated signaling
 - WebRTC call adapter (real runtime where supported; explicit disabled state otherwise)

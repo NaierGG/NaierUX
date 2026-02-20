@@ -375,6 +375,8 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
                 accent={accent}
                 contacts={contacts}
                 contactRequests={contactRequests}
+                localPeerId={localPeerId}
+                localDisplayName={identity.displayName}
                 onStartChat={onOpenChat}
                 onSendFriendRequest={sendFriendRequest}
               />
