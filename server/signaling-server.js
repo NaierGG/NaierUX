@@ -24,12 +24,19 @@ const AUTH_TOKEN = env("SIGNAL_AUTH_TOKEN", "dev-signaling-secret");
 const PING_INTERVAL_MS = envInt("SIGNAL_PING_MS", 25000);
 const MAX_PAYLOAD_BYTES = envInt("SIGNAL_MAX_PAYLOAD_BYTES", 1024 * 256);
 const MAX_QUEUE_PER_PEER = envInt("SIGNAL_MAX_QUEUE_PER_PEER", 200);
+const RATE_LIMIT_WINDOW_MS = envInt("SIGNAL_RATE_LIMIT_WINDOW_MS", 10000);
+const RATE_LIMIT_MAX = envInt("SIGNAL_RATE_LIMIT_MAX", 80);
+const NONCE_TTL_MS = envInt("SIGNAL_NONCE_TTL_MS", 5 * 60 * 1000);
+const AUTH_TS_SKEW_MS = envInt("SIGNAL_AUTH_TS_SKEW_MS", 60 * 1000);
 
 const VALID_ID = /^[a-zA-Z0-9._:-]{3,128}$/;
 const WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const SUPPORTED_SIGNAL_TYPES = new Set(["bootstrap", "offer", "answer", "ice", "candidate", "hangup"]);
 
 const namespaces = new Map();
 const pending = new Map();
+const peerRateState = new Map();
+const peerNonceState = new Map();
 
 function makeNamespaceState(namespace) {
   let state = namespaces.get(namespace);
@@ -42,6 +49,55 @@ function makeNamespaceState(namespace) {
 
 function pendingKey(namespace, peerId) {
   return `${namespace}::${peerId}`;
+}
+
+function logEvent(event, fields = {}) {
+  const encoded = JSON.stringify(fields);
+  console.log(`[Naier Signal] ${event} ${encoded}`);
+}
+
+function errorMessage(code) {
+  switch (code) {
+    case "invalid_json":
+      return "Malformed JSON payload.";
+    case "session_missing":
+      return "WebSocket session is missing.";
+    case "namespace_mismatch":
+      return "Namespace does not match current session.";
+    case "peer_mismatch":
+      return "Peer ID does not match current session.";
+    case "unsupported_type":
+      return "Unsupported message type.";
+    case "unsupported_signal_type":
+      return "Unsupported signaling envelope type.";
+    case "envelope_missing":
+      return "Signaling envelope is missing.";
+    case "invalid_peer_id_format":
+      return "Peer ID format is invalid.";
+    case "invalid_auth_signature":
+      return "Envelope auth signature is invalid.";
+    case "invalid_auth_ts":
+      return "Envelope auth timestamp is outside the allowed window.";
+    case "replay_detected":
+      return "Replay detected: nonce already used.";
+    case "invalid_route_signature":
+      return "Envelope route signature is invalid.";
+    case "rate_limited":
+      return "Rate limit exceeded. Try again shortly.";
+    default:
+      if (code.startsWith("invalid_")) {
+        return "Envelope has missing or invalid required fields.";
+      }
+      return "Invalid signaling request.";
+  }
+}
+
+function sendError(connection, code) {
+  const message = errorMessage(code);
+  const peerId = connection?.session?.peerId ?? "unknown";
+  const namespace = connection?.session?.namespace ?? "unknown";
+  sendJson(connection, { type: "error", code, message });
+  logEvent("error", { peerId, namespace, code });
 }
 
 function canonicalSignalPayload(envelope) {
@@ -72,17 +128,59 @@ function safeEqualHex(a, b) {
   }
 }
 
-function verifyAuth(envelope) {
-  if (!envelope.auth || typeof envelope.auth !== "object") {
-    return false;
+function cleanupNonceState(namespace, peerId, nowMs = Date.now()) {
+  const key = pendingKey(namespace, peerId);
+  const state = peerNonceState.get(key);
+  if (!state) {
+    return;
   }
-  const { nonce, signature } = envelope.auth;
-  if (typeof nonce !== "string" || typeof signature !== "string") {
-    return false;
+  for (const [nonce, ts] of state.entries()) {
+    if (nowMs - ts > NONCE_TTL_MS) {
+      state.delete(nonce);
+    }
+  }
+  if (state.size === 0) {
+    peerNonceState.delete(key);
+  }
+}
+
+function checkAndStoreNonce(namespace, peerId, nonce, ts) {
+  const key = pendingKey(namespace, peerId);
+  cleanupNonceState(namespace, peerId);
+  let state = peerNonceState.get(key);
+  if (!state) {
+    state = new Map();
+    peerNonceState.set(key, state);
+  }
+  if (state.has(nonce)) {
+    return "replay_detected";
+  }
+  state.set(nonce, ts);
+  return null;
+}
+
+function verifyAuth(envelope, namespace, sessionPeerId) {
+  if (!envelope.auth || typeof envelope.auth !== "object") {
+    return "invalid_auth_signature";
+  }
+  const { nonce, ts, signature } = envelope.auth;
+  if (typeof nonce !== "string" || typeof signature !== "string" || typeof ts !== "number") {
+    return "invalid_auth_signature";
+  }
+  if (!Number.isFinite(ts)) {
+    return "invalid_auth_ts";
+  }
+  const nowMs = Date.now();
+  if (Math.abs(nowMs - ts) > AUTH_TS_SKEW_MS) {
+    return "invalid_auth_ts";
+  }
+  const replayError = checkAndStoreNonce(namespace, sessionPeerId, nonce, ts);
+  if (replayError) {
+    return replayError;
   }
   const canonical = canonicalSignalPayload(envelope);
-  const expected = hmacHex(AUTH_TOKEN, `${nonce}|${canonical}`);
-  return safeEqualHex(expected, signature);
+  const expected = hmacHex(AUTH_TOKEN, `${nonce}|${ts}|${canonical}`);
+  return safeEqualHex(expected, signature) ? null : "invalid_auth_signature";
 }
 
 function verifyRoute(route) {
@@ -99,7 +197,7 @@ function verifyRoute(route) {
   return safeEqualHex(expected, route.signature);
 }
 
-function validateEnvelope(envelope, sessionPeerId) {
+function validateEnvelope(envelope, namespace, sessionPeerId) {
   if (!envelope || typeof envelope !== "object") return "envelope_missing";
   const required = ["id", "fromPeerId", "toPeerId", "sessionId", "type", "createdAtIso"];
   for (const key of required) {
@@ -110,16 +208,41 @@ function validateEnvelope(envelope, sessionPeerId) {
   if (!VALID_ID.test(envelope.fromPeerId) || !VALID_ID.test(envelope.toPeerId)) {
     return "invalid_peer_id_format";
   }
+  if (!SUPPORTED_SIGNAL_TYPES.has(envelope.type)) {
+    return "unsupported_signal_type";
+  }
   if (envelope.fromPeerId !== sessionPeerId) {
     return "peer_mismatch";
   }
-  if (!verifyAuth(envelope)) {
-    return "invalid_auth_signature";
+  const authError = verifyAuth(envelope, namespace, sessionPeerId);
+  if (authError) {
+    return authError;
   }
   if (!verifyRoute(envelope.route)) {
     return "invalid_route_signature";
   }
   return null;
+}
+
+function cleanupPeerRateState(namespace, peerId) {
+  const key = pendingKey(namespace, peerId);
+  peerRateState.delete(key);
+  peerNonceState.delete(key);
+}
+
+function checkRateLimit(namespace, peerId) {
+  const key = pendingKey(namespace, peerId);
+  const nowMs = Date.now();
+  const existing = peerRateState.get(key);
+  if (!existing || nowMs - existing.windowStartMs > RATE_LIMIT_WINDOW_MS) {
+    peerRateState.set(key, {
+      windowStartMs: nowMs,
+      count: 1,
+    });
+    return false;
+  }
+  existing.count += 1;
+  return existing.count > RATE_LIMIT_MAX;
 }
 
 function encodeFrame(opcode, payloadBuffer) {
@@ -220,9 +343,34 @@ function sendClose(connection, code = 1000, reason = "") {
   sendFrame(connection, 0x8, payload);
 }
 
+function cleanupConnectionSession(connection, reason = "closed") {
+  const activeSession = connection?.session;
+  if (!activeSession || connection.sessionCleaned) {
+    return;
+  }
+  connection.sessionCleaned = true;
+  const namespaceState = namespaces.get(activeSession.namespace);
+  if (namespaceState) {
+    const current = namespaceState.get(activeSession.peerId);
+    if (current && current.connection === connection) {
+      namespaceState.delete(activeSession.peerId);
+    }
+    if (namespaceState.size === 0) {
+      namespaces.delete(activeSession.namespace);
+    }
+  }
+  cleanupPeerRateState(activeSession.namespace, activeSession.peerId);
+  logEvent("connection_closed", {
+    namespace: activeSession.namespace,
+    peerId: activeSession.peerId,
+    reason,
+  });
+}
+
 function closeConnection(connection) {
   if (!connection || connection.closed) return;
   connection.closed = true;
+  cleanupConnectionSession(connection, "socket_destroy");
   try {
     connection.socket.destroy();
   } catch {
@@ -300,6 +448,7 @@ function createWebSocketConnection(socket, req) {
     closed: false,
     isAlive: true,
     session: null,
+    sessionCleaned: false,
   };
 }
 
@@ -325,43 +474,61 @@ function handleFrame(connection, frame) {
   try {
     incoming = JSON.parse(frame.payload.toString("utf8"));
   } catch {
-    sendJson(connection, { type: "error", code: "invalid_json" });
+    sendError(connection, "invalid_json");
     return;
   }
 
   const activeSession = connection.session;
   if (!activeSession) {
-    sendJson(connection, { type: "error", code: "session_missing" });
+    sendError(connection, "session_missing");
     return;
   }
 
   if (incoming.namespace !== activeSession.namespace) {
-    sendJson(connection, { type: "error", code: "namespace_mismatch" });
+    sendError(connection, "namespace_mismatch");
     return;
   }
   if (incoming.peerId !== activeSession.peerId) {
-    sendJson(connection, { type: "error", code: "peer_mismatch" });
+    sendError(connection, "peer_mismatch");
+    return;
+  }
+
+  if (checkRateLimit(activeSession.namespace, activeSession.peerId)) {
+    sendError(connection, "rate_limited");
     return;
   }
 
   if (incoming.type === "bootstrap") {
+    const bootstrapValidationError = validateEnvelope(
+      incoming.envelope,
+      activeSession.namespace,
+      activeSession.peerId,
+    );
+    if (bootstrapValidationError) {
+      sendError(connection, bootstrapValidationError);
+      return;
+    }
     sendJson(connection, {
       type: "bootstrap_ack",
       namespace: activeSession.namespace,
       peerId: activeSession.peerId,
       serverTimeIso: new Date().toISOString(),
     });
+    logEvent("bootstrap_ack", {
+      namespace: activeSession.namespace,
+      peerId: activeSession.peerId,
+    });
     return;
   }
 
   if (incoming.type !== "signal") {
-    sendJson(connection, { type: "error", code: "unsupported_type" });
+    sendError(connection, "unsupported_type");
     return;
   }
 
-  const validationError = validateEnvelope(incoming.envelope, activeSession.peerId);
+  const validationError = validateEnvelope(incoming.envelope, activeSession.namespace, activeSession.peerId);
   if (validationError) {
-    sendJson(connection, { type: "error", code: validationError });
+    sendError(connection, validationError);
     return;
   }
 
@@ -386,6 +553,12 @@ function handleFrame(connection, frame) {
       toPeerId: targetPeer,
       envelopeId: envelope.id,
     });
+    logEvent("signal_queued", {
+      namespace: activeSession.namespace,
+      peerId: activeSession.peerId,
+      toPeerId: targetPeer,
+      signalType: envelope.type,
+    });
     return;
   }
 
@@ -397,6 +570,12 @@ function handleFrame(connection, frame) {
     toPeerId: targetPeer,
     envelopeId: envelope.id,
     deliveredAtIso: new Date().toISOString(),
+  });
+  logEvent("signal_delivered", {
+    namespace: activeSession.namespace,
+    peerId: activeSession.peerId,
+    toPeerId: targetPeer,
+    signalType: envelope.type,
   });
 }
 
@@ -423,20 +602,11 @@ function bindConnectionHandlers(connection) {
 
   connection.socket.on("close", () => {
     connection.closed = true;
-    const activeSession = connection.session;
-    if (!activeSession) return;
-    const namespaceState = namespaces.get(activeSession.namespace);
-    if (!namespaceState) return;
-    const current = namespaceState.get(activeSession.peerId);
-    if (current && current.connection === connection) {
-      namespaceState.delete(activeSession.peerId);
-    }
-    if (namespaceState.size === 0) {
-      namespaces.delete(activeSession.namespace);
-    }
+    cleanupConnectionSession(connection, "socket_close");
   });
 
   connection.socket.on("error", () => {
+    cleanupConnectionSession(connection, "socket_error");
     closeConnection(connection);
   });
 }
@@ -488,9 +658,11 @@ server.on("upgrade", (req, socket) => {
   const existing = nsState.get(peerId);
   if (existing && existing.connection !== connection) {
     sendClose(existing.connection, 4409, "peer_replaced");
+    cleanupConnectionSession(existing.connection, "peer_replaced");
     closeConnection(existing.connection);
   }
   nsState.set(peerId, { connection, session });
+  logEvent("connection_opened", { namespace, peerId });
 
   bindConnectionHandlers(connection);
 
@@ -521,8 +693,11 @@ const pingTimer = setInterval(() => {
 pingTimer.unref?.();
 
 server.listen(PORT, HOST, () => {
-  console.log(
-    `[Naier Signal] listening on ws://${HOST}:${PORT} ` +
-      `(query: peerId, ns, token; health: http://${HOST}:${PORT}/healthz)`,
-  );
+  logEvent("listening", {
+    wsUrl: `ws://${HOST}:${PORT}`,
+    healthUrl: `http://${HOST}:${PORT}/healthz`,
+    rateLimitWindowMs: RATE_LIMIT_WINDOW_MS,
+    rateLimitMax: RATE_LIMIT_MAX,
+    authTsSkewMs: AUTH_TS_SKEW_MS,
+  });
 });

@@ -305,7 +305,7 @@ export class WebRTCP2PAdapter implements NetworkAdapter {
         fromPeerId: this.localPeerId,
         toPeerId: peerId,
         sessionId: ctx.sessionId,
-        type: "ice",
+        type: "candidate",
         payload: event.candidate,
         createdAtIso: new Date().toISOString(),
       });
@@ -454,7 +454,7 @@ export class WebRTCP2PAdapter implements NetworkAdapter {
       return;
     }
 
-    if (envelope.type === "ice") {
+    if (envelope.type === "ice" || envelope.type === "candidate") {
       const candidate: AnyIceCandidate = RTCIceCandidateCtor
         ? new RTCIceCandidateCtor(envelope.payload)
         : envelope.payload;

@@ -57,6 +57,10 @@ npm run start
 - Mobile: Expo Go or emulator
 - Web: press `w` in Expo CLI
 
+Cloudflare Pages + Tunnel deployment guide:
+
+- `docs/DEPLOY_CLOUDFLARE.md`
+
 ## Runtime Flags
 
 - `NAIER_CRYPTO_POLICY`: `strict` or `compat`
@@ -66,7 +70,7 @@ npm run start
 - `NAIER_SIGNALING_TOKEN`: signaling auth token (required for ws signaling, min 16 chars)
 - `NAIER_SIGNAL_NAMESPACE`: signaling namespace
 - `NAIER_ALLOW_IN_MEMORY`: `1` allows local in-memory fallback; `0` keeps real network mode only
-- `NAIER_ALLOW_MOCK_CALL`: `1` allows mock call adapter fallback
+- `NAIER_MESSAGE_KEY` and `NAIER_SIGNALING_TOKEN` must be different values
 
 ### STUN/TURN
 
@@ -79,6 +83,8 @@ npm run start
 
 - `SIGNAL_HOST`, `SIGNAL_PORT`, `SIGNAL_AUTH_TOKEN`
 - `SIGNAL_PING_MS`, `SIGNAL_MAX_PAYLOAD_BYTES`, `SIGNAL_MAX_QUEUE_PER_PEER`
+- `SIGNAL_RATE_LIMIT_WINDOW_MS`, `SIGNAL_RATE_LIMIT_MAX`
+- `SIGNAL_NONCE_TTL_MS`, `SIGNAL_AUTH_TS_SKEW_MS`
 
 ## Security Notes
 
@@ -87,6 +93,18 @@ npm run start
 - Strict policy blocks insecure fallback paths in non-compat mode
 - Peer key and trust state are persisted locally
 - App-state backup payloads are encrypted
+- Signaling auth verifies `nonce + ts + signature` and rejects replayed nonces
+
+## Key Generation
+
+Generate separate 32-byte secrets:
+
+```bash
+openssl rand -hex 32
+openssl rand -hex 32
+```
+
+Use one for `NAIER_MESSAGE_KEY`, and the other for `NAIER_SIGNALING_TOKEN` / `SIGNAL_AUTH_TOKEN`.
 
 ## E2E Tests
 

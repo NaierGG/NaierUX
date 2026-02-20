@@ -1,4 +1,4 @@
-export type SignalType = "bootstrap" | "offer" | "answer" | "ice" | "hangup";
+export type SignalType = "bootstrap" | "offer" | "answer" | "ice" | "candidate" | "hangup";
 
 export type OnionRouteMode = "direct" | "relay2" | "tor";
 
@@ -12,6 +12,7 @@ export interface OnionRouteDescriptor {
 export interface SignalAuth {
   keyId: string;
   nonce: string;
+  ts: number;
   signature: string;
 }
 
@@ -115,13 +116,15 @@ async function signEnvelope(
   keyId: string,
 ): Promise<SignalEnvelope> {
   const nonce = randomHex(8);
+  const ts = Date.now();
   const canonical = canonicalSignalPayload(envelope);
-  const signature = await hmacSign(authToken, `${nonce}|${canonical}`);
+  const signature = await hmacSign(authToken, `${nonce}|${ts}|${canonical}`);
   return {
     ...envelope,
     auth: {
       keyId,
       nonce,
+      ts,
       signature,
     },
   };

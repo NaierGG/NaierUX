@@ -38,6 +38,7 @@ export type UseMessagesResult = {
   draft: string;
   setDraft: (value: string) => void;
   sending: boolean;
+  lastSendError: string | null;
 };
 
 function nowLabel(): string {
@@ -56,6 +57,7 @@ export function useMessages({
   const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [lastSendError, setLastSendError] = useState<string | null>(null);
 
   const controlled = Boolean(messages && setMessages);
   const effectiveMessages = useMemo(() => {
@@ -80,6 +82,7 @@ export function useMessages({
       }
 
       const optimisticId = `msg-local-${Date.now()}`;
+      setLastSendError(null);
       const optimistic: ChatMessage = {
         id: optimisticId,
         chatId,
@@ -107,7 +110,13 @@ export function useMessages({
         effectiveSetMessages((prev) =>
           prev.map((message) => (message.id === optimisticId ? sent : message)),
         );
-      } catch {
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Failed to send encrypted message.";
+        if (reason.toLowerCase().includes("secure handshake")) {
+          setLastSendError("Secure session is not ready yet. Wait for key exchange to complete, then retry.");
+        } else {
+          setLastSendError(reason);
+        }
         effectiveSetMessages((prev) =>
           prev.map((message) =>
             message.id === optimisticId
@@ -134,6 +143,7 @@ export function useMessages({
         return;
       }
 
+      setLastSendError(null);
       effectiveSetMessages((prev) =>
         prev.map((message) =>
           message.id === messageId ? { ...message, delivery: "sending", sentAtLabel: "retrying" } : message,
@@ -162,7 +172,13 @@ export function useMessages({
           ),
         );
         onThreadActivity?.({ chatId, text: existing.text, fromMe: true });
-      } catch {
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Failed to send encrypted message.";
+        if (reason.toLowerCase().includes("secure handshake")) {
+          setLastSendError("Secure session is not ready yet. Wait for key exchange to complete, then retry.");
+        } else {
+          setLastSendError(reason);
+        }
         effectiveSetMessages((prev) =>
           prev.map((message) =>
             message.id === messageId
@@ -199,5 +215,6 @@ export function useMessages({
     draft,
     setDraft,
     sending,
+    lastSendError,
   };
 }

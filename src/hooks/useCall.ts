@@ -3,7 +3,6 @@ import {
   AuthenticatedWebSocketSignalingAdapter,
   DisabledCallAdapter,
   InMemorySignalingAdapter,
-  MockWebRTCCallAdapter,
   WebRTCCallAdapter,
   isCallRuntimeSupported,
 } from "../core";
@@ -61,7 +60,6 @@ const SIGNAL_SERVER_URL = runtimeEnv("NAIER_SIGNALING_URL");
 const SIGNAL_NAMESPACE = runtimeEnv("NAIER_SIGNAL_NAMESPACE") ?? "naier-mesh-v1";
 const SIGNAL_AUTH_TOKEN = runtimeEnv("NAIER_SIGNALING_TOKEN")?.trim();
 const ALLOW_IN_MEMORY_FALLBACK = runtimeEnv("NAIER_ALLOW_IN_MEMORY") === "1";
-const ALLOW_MOCK_CALL = runtimeEnv("NAIER_ALLOW_MOCK_CALL") === "1";
 
 function parseCsv(value: string | undefined): string[] {
   if (!value) {
@@ -103,9 +101,6 @@ function createCallAdapter(localPeerId: string): CallAdapter {
   }
 
   if (!isCallRuntimeSupported()) {
-    if (ALLOW_MOCK_CALL) {
-      return new MockWebRTCCallAdapter();
-    }
     return new DisabledCallAdapter("This runtime does not support WebRTC media calls.");
   }
 
@@ -129,10 +124,6 @@ function createCallAdapter(localPeerId: string): CallAdapter {
       onionMode: "relay2",
     });
     return new WebRTCCallAdapter(signaling, localPeerId, { rtcConfig: buildRtcConfig() });
-  }
-
-  if (ALLOW_MOCK_CALL) {
-    return new MockWebRTCCallAdapter();
   }
 
   return new DisabledCallAdapter("Missing signaling config for calls. Set NAIER_SIGNALING_URL.");

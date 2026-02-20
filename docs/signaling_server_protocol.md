@@ -22,7 +22,7 @@ Date: 2026-02-19
 - response to client bootstrap frame
 
 3. `signal`
-- relayed offer/answer/ice/hangup envelope
+- relayed offer/answer/candidate/hangup envelope (`ice` also accepted for compatibility)
 
 4. `queued`
 - recipient offline; message queued
@@ -32,6 +32,14 @@ Date: 2026-02-19
 
 6. `error`
 - validation/auth/schema failures
+- shape:
+```json
+{
+  "type": "error",
+  "code": "rate_limited",
+  "message": "Rate limit exceeded. Try again shortly."
+}
+```
 
 ## Client -> Server Frames
 
@@ -59,8 +67,18 @@ Date: 2026-02-19
 
 - Query token must match server `SIGNAL_AUTH_TOKEN`.
 - Envelope `auth.signature` is verified as HMAC-SHA256 over:
-  - `nonce + "|" + canonical_envelope_payload`
+  - `nonce + "|" + ts + "|" + canonical_envelope_payload`
+- `auth.ts` must be within `SIGNAL_AUTH_TS_SKEW_MS` window.
+- Nonce replay is rejected per `namespace + peerId` for `SIGNAL_NONCE_TTL_MS`.
 - Route signature is verified when `route` object exists.
+
+## Rate Limiting
+
+- Per `namespace + peerId` window.
+- Config:
+  - `SIGNAL_RATE_LIMIT_WINDOW_MS`
+  - `SIGNAL_RATE_LIMIT_MAX`
+- Overflow returns `error(code=rate_limited)`.
 
 ## Queueing
 

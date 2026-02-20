@@ -130,7 +130,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
     switchCallRoute(route);
   }, [route, setNetworkRoute, switchCallRoute]);
 
-  const { messages: localMessages, draft, setDraft, sending, sendDraft, retryMessage } = useMessages({
+  const { messages: localMessages, draft, setDraft, sending, sendDraft, retryMessage, lastSendError } = useMessages({
     route,
     disappearPolicy,
     sendMessage,
@@ -394,7 +394,7 @@ export function AppNavigator({ navigationRef, currentRouteName }: AppNavigatorPr
               const sendBlockedReason =
                 trustState === "changed_key"
                   ? "Peer key changed. Approve the new key before sending."
-                  : null;
+                  : lastSendError;
 
               return (
                 <ChatScreen

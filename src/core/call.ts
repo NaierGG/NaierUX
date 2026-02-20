@@ -507,7 +507,7 @@ export class WebRTCCallAdapter implements CallAdapter {
       if (!event?.candidate || !this.activePeerId || !this.activeSessionId) {
         return;
       }
-      void this.sendSignal(this.activePeerId, this.activeSessionId, "ice", event.candidate);
+      void this.sendSignal(this.activePeerId, this.activeSessionId, "candidate", event.candidate);
     };
 
     connection.onconnectionstatechange = () => {
@@ -643,7 +643,7 @@ export class WebRTCCallAdapter implements CallAdapter {
       return;
     }
 
-    if (envelope.type === "ice") {
+    if (envelope.type === "ice" || envelope.type === "candidate") {
       if (!this.connection) {
         return;
       }
@@ -662,7 +662,7 @@ export class WebRTCCallAdapter implements CallAdapter {
   private async sendSignal(
     toPeerId: string,
     sessionId: string,
-    type: "offer" | "answer" | "ice" | "hangup",
+    type: "offer" | "answer" | "ice" | "candidate" | "hangup",
     payload: unknown,
   ): Promise<void> {
     await this.signaling.sendSignal({
