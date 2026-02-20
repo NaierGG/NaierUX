@@ -45,6 +45,25 @@ function nowLabel(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function humanizeSendError(reason: string): string {
+  const lower = reason.toLowerCase();
+  if (lower.includes("secure handshake") || lower.includes("handshake did not complete")) {
+    return "Secure session is not ready yet. Wait for key exchange to complete, then retry.";
+  }
+  if (
+    lower.includes("timed out waiting for rtcdatachannel open") ||
+    lower.includes("rtcdatachannel is not open") ||
+    lower.includes("peer connection state") ||
+    lower.includes("send failure")
+  ) {
+    return "Peer connection is not established. If peers are on different networks, enable TURN and retry.";
+  }
+  if (lower.includes("missing naier_signaling_url")) {
+    return "Signaling server is not configured. Set NAIER_SIGNALING_URL and retry.";
+  }
+  return reason;
+}
+
 export function useMessages({
   route,
   disappearPolicy,
@@ -112,11 +131,7 @@ export function useMessages({
         );
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Failed to send encrypted message.";
-        if (reason.toLowerCase().includes("secure handshake")) {
-          setLastSendError("Secure session is not ready yet. Wait for key exchange to complete, then retry.");
-        } else {
-          setLastSendError(reason);
-        }
+        setLastSendError(humanizeSendError(reason));
         effectiveSetMessages((prev) =>
           prev.map((message) =>
             message.id === optimisticId
@@ -174,11 +189,7 @@ export function useMessages({
         onThreadActivity?.({ chatId, text: existing.text, fromMe: true });
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Failed to send encrypted message.";
-        if (reason.toLowerCase().includes("secure handshake")) {
-          setLastSendError("Secure session is not ready yet. Wait for key exchange to complete, then retry.");
-        } else {
-          setLastSendError(reason);
-        }
+        setLastSendError(humanizeSendError(reason));
         effectiveSetMessages((prev) =>
           prev.map((message) =>
             message.id === messageId

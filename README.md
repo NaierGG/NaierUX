@@ -61,6 +61,7 @@ npm run start
 Cloudflare Pages + Tunnel deployment guide:
 
 - `docs/DEPLOY_CLOUDFLARE.md`
+- `docs/PHASE1_MVP_CHECKLIST.md`
 
 ## Runtime Flags
 

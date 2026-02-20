@@ -72,6 +72,7 @@ export function NewChatScreen({
   const [manualName, setManualName] = useState("");
   const [inviteInput, setInviteInput] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [appliedInvite, setAppliedInvite] = useState<{ peerId: string; name: string } | null>(null);
   const [nfcStatus, setNfcStatus] = useState<string | null>(null);
   const [qrFailed, setQrFailed] = useState(false);
   const nfcAbortRef = useRef<AbortController | null>(null);
@@ -123,13 +124,14 @@ export function NewChatScreen({
         return false;
       }
       if (normalizePeerId(parsed.peerId) === normalizePeerId(localPeerId)) {
+        setAppliedInvite(null);
         setInviteStatus("This is your own invite payload.");
         return false;
       }
+      const resolvedName = parsed.name ?? parsed.peerId;
       setManualPeerId(parsed.peerId);
-      if (parsed.name) {
-        setManualName(parsed.name);
-      }
+      setManualName(resolvedName);
+      setAppliedInvite({ peerId: parsed.peerId, name: resolvedName });
       setInviteStatus(`Invite applied: ${parsed.peerId}`);
       return true;
     },
@@ -272,6 +274,32 @@ export function NewChatScreen({
             <Text style={styles.secondaryButtonText}>Start NFC Scan (Web)</Text>
           </Pressable>
         </View>
+        {appliedInvite ? (
+          <View style={styles.buttonRow}>
+            <Pressable
+              style={[
+                styles.manualButton,
+                { borderColor: glow(accent, 0.45), backgroundColor: glow(accent, 0.14) },
+              ]}
+              onPress={() => {
+                onStartChat(appliedInvite.peerId, appliedInvite.name, "unverified");
+                setInviteInput("");
+                setInviteStatus(null);
+                setAppliedInvite(null);
+              }}
+            >
+              <Text style={[styles.manualButtonText, { color: accent }]}>Start Chat From Invite</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.manualButton, { borderColor: COLORS.glassBorder, backgroundColor: COLORS.bgElevated }]}
+              onPress={() => {
+                onSendFriendRequest(appliedInvite.peerId, appliedInvite.name || undefined);
+              }}
+            >
+              <Text style={styles.secondaryButtonText}>Send Friend Request From Invite</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <Text style={styles.helperSubText}>
           NFC support: {webNfcSupported ? "Supported in this browser" : "Not supported in this runtime"}
         </Text>
